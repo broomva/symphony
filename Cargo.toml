@@ -1,0 +1,87 @@
+[workspace]
+members = [
+    "crates/symphony-core",
+    "crates/symphony-config",
+    "crates/symphony-tracker",
+    "crates/symphony-workspace",
+    "crates/symphony-agent",
+    "crates/symphony-orchestrator",
+    "crates/symphony-observability",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.85"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json"] }
+
+# Templating (Liquid-compatible)
+liquid = "0.26"
+
+# Logging / tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# File watching
+notify = "7"
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# HTTP server (optional dashboard)
+axum = "0.8"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors"] }
+
+# Internal crates
+symphony-core = { path = "crates/symphony-core" }
+symphony-config = { path = "crates/symphony-config" }
+symphony-tracker = { path = "crates/symphony-tracker" }
+symphony-workspace = { path = "crates/symphony-workspace" }
+symphony-agent = { path = "crates/symphony-agent" }
+symphony-orchestrator = { path = "crates/symphony-orchestrator" }
+symphony-observability = { path = "crates/symphony-observability" }
+
+# The main binary
+[package]
+name = "symphony"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "symphony"
+path = "src/main.rs"
+
+[dependencies]
+symphony-core.workspace = true
+symphony-config.workspace = true
+symphony-tracker.workspace = true
+symphony-workspace.workspace = true
+symphony-agent.workspace = true
+symphony-orchestrator.workspace = true
+symphony-observability.workspace = true
+tokio.workspace = true
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true

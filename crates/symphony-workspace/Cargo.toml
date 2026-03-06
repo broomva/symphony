@@ -1,0 +1,12 @@
+[package]
+name = "symphony-workspace"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+symphony-core.workspace = true
+symphony-config.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tokio.workspace = true

@@ -1,0 +1,14 @@
+[package]
+name = "symphony-agent"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+symphony-core.workspace = true
+symphony-config.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tokio.workspace = true

@@ -1,0 +1,16 @@
+[package]
+name = "symphony-tracker"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+symphony-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+reqwest.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+chrono.workspace = true
+async-trait = "0.1"
