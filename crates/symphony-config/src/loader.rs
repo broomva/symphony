@@ -4,12 +4,13 @@
 
 use std::path::Path;
 
+use crate::template::TemplateError;
 use crate::types::{
     AgentConfig, CodexConfig, HooksConfig, ServiceConfig,
     WorkflowDefinition,
 };
 
-/// Errors from loading a workflow file.
+/// Errors from loading a workflow file (Spec Section 5.5).
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
     #[error("missing_workflow_file: {0}")]
@@ -18,6 +19,19 @@ pub enum LoadError {
     ParseError(String),
     #[error("workflow_front_matter_not_a_map")]
     FrontMatterNotMap,
+    #[error("template_parse_error: {0}")]
+    TemplateParse(String),
+    #[error("template_render_error: {0}")]
+    TemplateRender(String),
+}
+
+impl From<TemplateError> for LoadError {
+    fn from(e: TemplateError) -> Self {
+        match e {
+            TemplateError::ParseError(msg) => LoadError::TemplateParse(msg),
+            TemplateError::RenderError(msg) => LoadError::TemplateRender(msg),
+        }
+    }
 }
 
 /// Load and parse a WORKFLOW.md file.
@@ -293,16 +307,11 @@ pub fn validate_dispatch_config(config: &ServiceConfig) -> Result<(), Vec<String
 #[cfg(test)]
 mod tests {
     use super::*;
+    // ── 1.1: WORKFLOW.md parsing ──
 
     #[test]
     fn parse_workflow_with_front_matter() {
-        let content = r#"---
-tracker:
-  kind: linear
-  project_slug: test-proj
----
-Hello {{ issue.identifier }}!"#;
-
+        let content = "---\ntracker:\n  kind: linear\n  project_slug: test-proj\n---\nHello {{ issue.identifier }}!";
         let def = parse_workflow(content).unwrap();
         assert_eq!(def.prompt_template, "Hello {{ issue.identifier }}!");
         assert!(def.config.is_mapping());
@@ -323,31 +332,337 @@ Hello {{ issue.identifier }}!"#;
     }
 
     #[test]
-    fn resolve_env_expands_var() {
-        // SAFETY: test-only, single-threaded test runner context
-        unsafe {
-            std::env::set_var("SYMPHONY_TEST_KEY", "test-value");
-        }
-        assert_eq!(resolve_env("$SYMPHONY_TEST_KEY"), "test-value");
-        unsafe {
-            std::env::remove_var("SYMPHONY_TEST_KEY");
-        }
+    fn load_nonexistent_file_returns_missing() {
+        let err = load_workflow(std::path::Path::new("/nonexistent/WORKFLOW.md")).unwrap_err();
+        assert!(matches!(err, LoadError::MissingFile(_)));
     }
 
     #[test]
-    fn resolve_env_missing_returns_empty() {
+    fn parse_unclosed_front_matter() {
+        let content = "---\ntracker:\n  kind: linear";
+        let err = parse_workflow(content).unwrap_err();
+        assert!(matches!(err, LoadError::ParseError(_)));
+    }
+
+    #[test]
+    fn parse_invalid_yaml_front_matter() {
+        let content = "---\n: : :\n---\nbody";
+        let err = parse_workflow(content).unwrap_err();
+        assert!(matches!(err, LoadError::ParseError(_)));
+    }
+
+    #[test]
+    fn prompt_body_trimmed() {
+        let content = "---\ntracker:\n  kind: linear\n---\n\n  Hello World  \n\n";
+        let def = parse_workflow(content).unwrap();
+        assert_eq!(def.prompt_template, "Hello World");
+    }
+
+    // ── 1.2: Front matter extraction ──
+
+    #[test]
+    fn extract_full_config() {
+        let content = r#"---
+tracker:
+  kind: linear
+  endpoint: https://custom.linear.app/graphql
+  api_key: test-api-key
+  project_slug: my-proj
+  active_states:
+    - Todo
+    - In Progress
+  terminal_states:
+    - Done
+    - Closed
+polling:
+  interval_ms: 15000
+workspace:
+  root: /tmp/symphony_test
+hooks:
+  after_create: "echo created"
+  before_run: "echo before"
+  after_run: "echo after"
+  before_remove: "echo remove"
+  timeout_ms: 30000
+agent:
+  max_concurrent_agents: 5
+  max_turns: 10
+  max_retry_backoff_ms: 600000
+  max_concurrent_agents_by_state:
+    todo: 2
+    "In Progress": 3
+codex:
+  command: codex app-server
+  approval_policy: auto
+  turn_timeout_ms: 1800000
+  read_timeout_ms: 10000
+  stall_timeout_ms: 120000
+server:
+  port: 8080
+---
+Prompt body"#;
+
+        let def = parse_workflow(content).unwrap();
+        let config = extract_config(&def);
+
+        // Tracker
+        assert_eq!(config.tracker.kind, "linear");
+        assert_eq!(config.tracker.endpoint, "https://custom.linear.app/graphql");
+        assert_eq!(config.tracker.api_key, "test-api-key");
+        assert_eq!(config.tracker.project_slug, "my-proj");
+        assert_eq!(config.tracker.active_states, vec!["Todo", "In Progress"]);
+        assert_eq!(config.tracker.terminal_states, vec!["Done", "Closed"]);
+
+        // Polling
+        assert_eq!(config.polling.interval_ms, 15000);
+
+        // Workspace
+        assert_eq!(
+            config.workspace.root,
+            std::path::PathBuf::from("/tmp/symphony_test")
+        );
+
+        // Hooks
+        assert_eq!(config.hooks.after_create, Some("echo created".into()));
+        assert_eq!(config.hooks.before_run, Some("echo before".into()));
+        assert_eq!(config.hooks.after_run, Some("echo after".into()));
+        assert_eq!(config.hooks.before_remove, Some("echo remove".into()));
+        assert_eq!(config.hooks.timeout_ms, 30000);
+
+        // Agent
+        assert_eq!(config.agent.max_concurrent_agents, 5);
+        assert_eq!(config.agent.max_turns, 10);
+        assert_eq!(config.agent.max_retry_backoff_ms, 600000);
+        // Per-state: keys normalized to lowercase
+        assert_eq!(
+            config.agent.max_concurrent_agents_by_state.get("todo"),
+            Some(&2)
+        );
+        assert_eq!(
+            config
+                .agent
+                .max_concurrent_agents_by_state
+                .get("in progress"),
+            Some(&3)
+        );
+
+        // Codex
+        assert_eq!(config.codex.command, "codex app-server");
+        assert_eq!(config.codex.approval_policy, Some("auto".into()));
+        assert_eq!(config.codex.turn_timeout_ms, 1800000);
+        assert_eq!(config.codex.read_timeout_ms, 10000);
+        assert_eq!(config.codex.stall_timeout_ms, 120000);
+
+        // Server extension
+        assert_eq!(config.server_port, Some(8080));
+    }
+
+    #[test]
+    fn env_var_resolution_empty_returns_empty() {
         assert_eq!(resolve_env("$SYMPHONY_NONEXISTENT_VAR_XYZ"), "");
     }
 
     #[test]
-    fn resolve_env_literal_passthrough() {
+    fn env_var_resolution_expands() {
+        // SAFETY: test-only, single-threaded test runner context
+        unsafe { std::env::set_var("SYMPHONY_TEST_KEY", "test-value"); }
+        assert_eq!(resolve_env("$SYMPHONY_TEST_KEY"), "test-value");
+        unsafe { std::env::remove_var("SYMPHONY_TEST_KEY"); }
+    }
+
+    #[test]
+    fn env_var_literal_passthrough() {
         assert_eq!(resolve_env("literal-value"), "literal-value");
     }
 
     #[test]
-    fn validate_config_catches_missing_tracker() {
+    fn polling_interval_string_coercion() {
+        let content = "---\npolling:\n  interval_ms: \"5000\"\n---\nbody";
+        let def = parse_workflow(content).unwrap();
+        let config = extract_config(&def);
+        assert_eq!(config.polling.interval_ms, 5000);
+    }
+
+    #[test]
+    fn hooks_non_positive_timeout_uses_default() {
+        let content = "---\nhooks:\n  timeout_ms: 0\n---\nbody";
+        let def = parse_workflow(content).unwrap();
+        let config = extract_config(&def);
+        assert_eq!(config.hooks.timeout_ms, 60000); // default
+    }
+
+    #[test]
+    fn hooks_negative_timeout_uses_default() {
+        let content = "---\nhooks:\n  timeout_ms: -1\n---\nbody";
+        let def = parse_workflow(content).unwrap();
+        let config = extract_config(&def);
+        // -1 won't parse as u64, so default remains
+        assert_eq!(config.hooks.timeout_ms, 60000);
+    }
+
+    #[test]
+    fn per_state_map_normalizes_keys() {
+        let content = "---\nagent:\n  max_concurrent_agents_by_state:\n    \"  Todo  \": 2\n    \"IN PROGRESS\": 1\n---\nbody";
+        let def = parse_workflow(content).unwrap();
+        let config = extract_config(&def);
+        assert_eq!(
+            config.agent.max_concurrent_agents_by_state.get("todo"),
+            Some(&2)
+        );
+        assert_eq!(
+            config
+                .agent
+                .max_concurrent_agents_by_state
+                .get("in progress"),
+            Some(&1)
+        );
+    }
+
+    #[test]
+    fn per_state_map_ignores_non_positive() {
+        let content = "---\nagent:\n  max_concurrent_agents_by_state:\n    todo: 0\n    done: -1\n---\nbody";
+        let def = parse_workflow(content).unwrap();
+        let config = extract_config(&def);
+        assert!(config.agent.max_concurrent_agents_by_state.is_empty());
+    }
+
+    #[test]
+    fn active_states_csv_parsing() {
+        let content = "---\ntracker:\n  active_states: \"Todo, In Progress\"\n---\nbody";
+        let def = parse_workflow(content).unwrap();
+        let config = extract_config(&def);
+        assert_eq!(config.tracker.active_states, vec!["Todo", "In Progress"]);
+    }
+
+    #[test]
+    fn unknown_keys_ignored() {
+        let content = "---\nunknown_key: foobar\ntracker:\n  kind: linear\n---\nbody";
+        let def = parse_workflow(content).unwrap();
+        let config = extract_config(&def);
+        assert_eq!(config.tracker.kind, "linear");
+    }
+
+    // ── 1.4: Dispatch preflight validation ──
+
+    #[test]
+    fn validate_config_catches_missing_tracker_kind() {
         let config = ServiceConfig::default();
         let errors = validate_dispatch_config(&config).unwrap_err();
-        assert!(!errors.is_empty());
+        assert!(errors.iter().any(|e| e.contains("tracker.kind")));
+    }
+
+    #[test]
+    fn validate_config_catches_unsupported_tracker_kind() {
+        let config = ServiceConfig {
+            tracker: crate::types::TrackerConfig {
+                kind: "jira".into(),
+                api_key: "key".into(),
+                project_slug: "proj".into(),
+                ..Default::default()
+            },
+            codex: CodexConfig {
+                command: "codex".into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let errors = validate_dispatch_config(&config).unwrap_err();
+        assert!(errors.iter().any(|e| e.contains("unsupported")));
+    }
+
+    #[test]
+    fn validate_config_catches_empty_api_key() {
+        let config = ServiceConfig {
+            tracker: crate::types::TrackerConfig {
+                kind: "linear".into(),
+                api_key: String::new(),
+                project_slug: "proj".into(),
+                ..Default::default()
+            },
+            codex: CodexConfig {
+                command: "codex".into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let errors = validate_dispatch_config(&config).unwrap_err();
+        assert!(errors.iter().any(|e| e.contains("api_key")));
+    }
+
+    #[test]
+    fn validate_config_catches_empty_codex_command() {
+        let config = ServiceConfig {
+            tracker: crate::types::TrackerConfig {
+                kind: "linear".into(),
+                api_key: "key".into(),
+                project_slug: "proj".into(),
+                ..Default::default()
+            },
+            codex: CodexConfig {
+                command: String::new(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let errors = validate_dispatch_config(&config).unwrap_err();
+        assert!(errors.iter().any(|e| e.contains("codex.command")));
+    }
+
+    #[test]
+    fn validate_config_passes_with_valid() {
+        let config = ServiceConfig {
+            tracker: crate::types::TrackerConfig {
+                kind: "linear".into(),
+                api_key: "key".into(),
+                project_slug: "proj".into(),
+                ..Default::default()
+            },
+            codex: CodexConfig {
+                command: "codex app-server".into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        assert!(validate_dispatch_config(&config).is_ok());
+    }
+
+    #[test]
+    fn validate_missing_project_slug_for_linear() {
+        let config = ServiceConfig {
+            tracker: crate::types::TrackerConfig {
+                kind: "linear".into(),
+                api_key: "key".into(),
+                project_slug: String::new(),
+                ..Default::default()
+            },
+            codex: CodexConfig {
+                command: "codex".into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let errors = validate_dispatch_config(&config).unwrap_err();
+        assert!(errors.iter().any(|e| e.contains("project_slug")));
+    }
+
+    // ── 1.6: Error surface ──
+
+    #[test]
+    fn error_classes_are_distinct() {
+        let e1 = LoadError::MissingFile("x".into());
+        let e2 = LoadError::ParseError("x".into());
+        let e3 = LoadError::FrontMatterNotMap;
+        let e4 = LoadError::TemplateParse("x".into());
+        let e5 = LoadError::TemplateRender("x".into());
+        // Verify each has a distinct Display string
+        let msgs: Vec<String> = vec![e1, e2, e3, e4, e5]
+            .into_iter()
+            .map(|e| e.to_string())
+            .collect();
+        assert!(msgs[0].starts_with("missing_workflow_file"));
+        assert!(msgs[1].starts_with("workflow_parse_error"));
+        assert!(msgs[2].starts_with("workflow_front_matter_not_a_map"));
+        assert!(msgs[3].starts_with("template_parse_error"));
+        assert!(msgs[4].starts_with("template_render_error"));
     }
 }

@@ -3,12 +3,13 @@
 //! Provides a Linear-compatible tracker client that fetches candidate issues,
 //! refreshes issue states, and normalizes payloads into the core domain model.
 
+pub mod graphql_tool;
 pub mod linear;
 
 use async_trait::async_trait;
 use symphony_core::Issue;
 
-/// Errors from tracker operations.
+/// Errors from tracker operations (Spec Section 11.4).
 #[derive(Debug, thiserror::Error)]
 pub enum TrackerError {
     #[error("unsupported_tracker_kind: {0}")]
@@ -25,6 +26,8 @@ pub enum TrackerError {
     GraphqlErrors(String),
     #[error("linear_unknown_payload: {0}")]
     UnknownPayload(String),
+    #[error("linear_missing_end_cursor")]
+    MissingEndCursor,
 }
 
 /// Trait for issue tracker adapters (Spec Section 11.1).

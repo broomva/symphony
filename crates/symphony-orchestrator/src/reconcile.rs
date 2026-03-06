@@ -1,10 +1,12 @@
-//! Reconciliation logic (Spec Section 8.5).
+//! Reconciliation logic (Spec Sections 8.4, 8.5).
+//!
+//! Stall detection, state refresh, retry backoff, terminal cleanup.
 
 use symphony_core::OrchestratorState;
 
 /// Calculate retry backoff delay (Spec Section 8.4).
 ///
-/// Normal continuation: 1000ms fixed.
+/// Normal continuation: 1000ms fixed, attempt=1.
 /// Failure-driven: min(10000 * 2^(attempt-1), max_backoff_ms).
 pub fn backoff_delay_ms(attempt: u32, max_backoff_ms: u64, is_continuation: bool) -> u64 {
     if is_continuation {
@@ -33,6 +35,9 @@ pub fn is_active_state(state: &str, active_states: &[String]) -> bool {
 }
 
 /// Check for stalled sessions (Spec Section 8.5 Part A).
+///
+/// Returns issue IDs of stalled sessions.
+/// If stall_timeout_ms <= 0, stall detection is disabled.
 pub fn find_stalled_issues(
     state: &OrchestratorState,
     stall_timeout_ms: i64,
@@ -55,6 +60,32 @@ pub fn find_stalled_issues(
         })
         .map(|(id, _)| id.clone())
         .collect()
+}
+
+/// Determine the action for an issue after state refresh (S8.5 Part B).
+#[derive(Debug, PartialEq, Eq)]
+pub enum ReconcileAction {
+    /// Issue still active — update in-memory snapshot.
+    UpdateSnapshot,
+    /// Issue in terminal state — terminate worker + clean workspace.
+    TerminateAndClean,
+    /// Issue neither active nor terminal — terminate without cleanup.
+    TerminateNoCleanup,
+}
+
+/// Determine reconciliation action for an issue based on its current state.
+pub fn reconcile_action(
+    current_state: &str,
+    active_states: &[String],
+    terminal_states: &[String],
+) -> ReconcileAction {
+    if is_terminal_state(current_state, terminal_states) {
+        ReconcileAction::TerminateAndClean
+    } else if is_active_state(current_state, active_states) {
+        ReconcileAction::UpdateSnapshot
+    } else {
+        ReconcileAction::TerminateNoCleanup
+    }
 }
 
 #[cfg(test)]
@@ -93,5 +124,47 @@ mod tests {
         assert!(is_active_state("Todo", &actives));
         assert!(is_active_state("in progress", &actives));
         assert!(!is_active_state("Done", &actives));
+    }
+
+    #[test]
+    fn stall_detection_disabled_with_zero() {
+        let state = OrchestratorState::new(30000, 10);
+        assert!(find_stalled_issues(&state, 0, 999999999).is_empty());
+    }
+
+    #[test]
+    fn stall_detection_disabled_with_negative() {
+        let state = OrchestratorState::new(30000, 10);
+        assert!(find_stalled_issues(&state, -1, 999999999).is_empty());
+    }
+
+    #[test]
+    fn reconcile_action_terminal() {
+        let active = vec!["Todo".into(), "In Progress".into()];
+        let terminal = vec!["Done".into(), "Closed".into()];
+        assert_eq!(
+            reconcile_action("Done", &active, &terminal),
+            ReconcileAction::TerminateAndClean
+        );
+    }
+
+    #[test]
+    fn reconcile_action_active() {
+        let active = vec!["Todo".into(), "In Progress".into()];
+        let terminal = vec!["Done".into(), "Closed".into()];
+        assert_eq!(
+            reconcile_action("In Progress", &active, &terminal),
+            ReconcileAction::UpdateSnapshot
+        );
+    }
+
+    #[test]
+    fn reconcile_action_neither() {
+        let active = vec!["Todo".into(), "In Progress".into()];
+        let terminal = vec!["Done".into(), "Closed".into()];
+        assert_eq!(
+            reconcile_action("Triage", &active, &terminal),
+            ReconcileAction::TerminateNoCleanup
+        );
     }
 }

@@ -4,7 +4,12 @@
 
 pub mod server;
 
-/// Initialize structured logging with tracing.
+/// Initialize structured logging with tracing (S13.1-13.2).
+///
+/// - JSON format for machine parsing
+/// - EnvFilter for log level control (defaults to "info")
+/// - Includes target information for source identification
+/// - Sink failure does not crash (S13.2) — tracing handles this gracefully
 pub fn init_logging() {
     use tracing_subscriber::{fmt, EnvFilter};
 

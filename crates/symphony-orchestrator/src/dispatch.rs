@@ -1,6 +1,8 @@
-//! Dispatch logic (Spec Section 8.2).
+//! Dispatch logic (Spec Section 8.2, 8.3).
 //!
-//! Candidate selection, sorting, eligibility checking.
+//! Candidate selection, sorting, eligibility checking, concurrency control.
+
+use std::collections::HashMap;
 
 use symphony_core::{Issue, OrchestratorState};
 
@@ -10,9 +12,9 @@ pub fn is_dispatch_eligible(
     state: &OrchestratorState,
     terminal_states: &[String],
     active_states: &[String],
-    per_state_limits: &std::collections::HashMap<String, u32>,
+    per_state_limits: &HashMap<String, u32>,
 ) -> bool {
-    // Must have required fields
+    // Must have required fields (S8.2)
     if issue.id.is_empty()
         || issue.identifier.is_empty()
         || issue.title.is_empty()
@@ -23,7 +25,7 @@ pub fn is_dispatch_eligible(
 
     let normalized_state = issue.state.trim().to_lowercase();
 
-    // Must be in active states
+    // Must be in active states (S8.2)
     if !active_states
         .iter()
         .any(|s| s.trim().to_lowercase() == normalized_state)
@@ -31,7 +33,7 @@ pub fn is_dispatch_eligible(
         return false;
     }
 
-    // Must not be in terminal states
+    // Must not be in terminal states (S8.2)
     if terminal_states
         .iter()
         .any(|s| s.trim().to_lowercase() == normalized_state)
@@ -39,17 +41,17 @@ pub fn is_dispatch_eligible(
         return false;
     }
 
-    // Must not be already running or claimed
+    // Must not be already running or claimed (S8.2)
     if state.running.contains_key(&issue.id) || state.is_claimed(&issue.id) {
         return false;
     }
 
-    // Must have global slots available
+    // Must have global slots available (S8.3)
     if state.available_slots() == 0 {
         return false;
     }
 
-    // Per-state concurrency check
+    // Per-state concurrency check (S8.3)
     if let Some(&limit) = per_state_limits.get(&normalized_state) {
         let running_in_state = state
             .running
@@ -61,7 +63,7 @@ pub fn is_dispatch_eligible(
         }
     }
 
-    // Blocker rule: Todo issues with non-terminal blockers are not eligible
+    // Blocker rule: Todo issues with non-terminal blockers are not eligible (S8.2)
     if normalized_state == "todo" {
         let has_non_terminal_blocker = issue.blocked_by.iter().any(|b| {
             b.state
@@ -88,7 +90,6 @@ pub fn is_dispatch_eligible(
 /// 3. identifier lexicographic
 pub fn sort_for_dispatch(issues: &mut [Issue]) {
     issues.sort_by(|a, b| {
-        // Priority: lower is better, None sorts last
         let pa = a.priority.unwrap_or(i32::MAX);
         let pb = b.priority.unwrap_or(i32::MAX);
         pa.cmp(&pb)
@@ -97,11 +98,33 @@ pub fn sort_for_dispatch(issues: &mut [Issue]) {
     });
 }
 
+/// Count running issues in a specific state.
+pub fn running_in_state(state: &OrchestratorState, normalized_state: &str) -> u32 {
+    state
+        .running
+        .values()
+        .filter(|r| r.issue.state.trim().to_lowercase() == normalized_state)
+        .count() as u32
+}
+
+/// Check per-state concurrency availability (S8.3).
+pub fn has_per_state_slot(
+    state: &OrchestratorState,
+    issue_state: &str,
+    per_state_limits: &HashMap<String, u32>,
+) -> bool {
+    let normalized = issue_state.trim().to_lowercase();
+    match per_state_limits.get(&normalized) {
+        Some(&limit) => running_in_state(state, &normalized) < limit,
+        None => true, // no per-state limit → use global only
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::Utc;
-    use symphony_core::Issue;
+    use symphony_core::{BlockerRef, Issue};
 
     fn make_issue(id: &str, identifier: &str, priority: Option<i32>, state: &str) -> Issue {
         Issue {
@@ -145,17 +168,29 @@ mod tests {
     }
 
     #[test]
+    fn same_priority_sorted_by_created_at() {
+        use chrono::Duration;
+        let now = Utc::now();
+        let mut issue_b = make_issue("2", "B-2", Some(1), "Todo");
+        issue_b.created_at = Some(now);
+        let mut issue_a = make_issue("1", "A-1", Some(1), "Todo");
+        issue_a.created_at = Some(now - Duration::hours(1)); // A is older
+
+        let mut issues = vec![issue_b, issue_a];
+        sort_for_dispatch(&mut issues);
+        // Oldest first
+        assert_eq!(issues[0].identifier, "A-1");
+        assert_eq!(issues[1].identifier, "B-2");
+    }
+
+    #[test]
     fn eligible_basic() {
         let state = OrchestratorState::new(30000, 10);
         let issue = make_issue("1", "T-1", Some(1), "Todo");
         let active = vec!["Todo".into()];
         let terminal = vec!["Done".into()];
         assert!(is_dispatch_eligible(
-            &issue,
-            &state,
-            &terminal,
-            &active,
-            &std::collections::HashMap::new()
+            &issue, &state, &terminal, &active, &HashMap::new()
         ));
     }
 
@@ -164,14 +199,151 @@ mod tests {
         let mut state = OrchestratorState::new(30000, 10);
         state.claimed.insert("1".into());
         let issue = make_issue("1", "T-1", Some(1), "Todo");
-        let active = vec!["Todo".into()];
-        let terminal = vec!["Done".into()];
         assert!(!is_dispatch_eligible(
             &issue,
             &state,
-            &terminal,
-            &active,
-            &std::collections::HashMap::new()
+            &["Done".into()],
+            &["Todo".into()],
+            &HashMap::new()
+        ));
+    }
+
+    #[test]
+    fn ineligible_missing_title() {
+        let state = OrchestratorState::new(30000, 10);
+        let mut issue = make_issue("1", "T-1", Some(1), "Todo");
+        issue.title = String::new();
+        assert!(!is_dispatch_eligible(
+            &issue,
+            &state,
+            &["Done".into()],
+            &["Todo".into()],
+            &HashMap::new()
+        ));
+    }
+
+    #[test]
+    fn ineligible_not_active_state() {
+        let state = OrchestratorState::new(30000, 10);
+        let issue = make_issue("1", "T-1", Some(1), "Backlog");
+        assert!(!is_dispatch_eligible(
+            &issue,
+            &state,
+            &["Done".into()],
+            &["Todo".into()],
+            &HashMap::new()
+        ));
+    }
+
+    #[test]
+    fn todo_with_non_terminal_blocker_ineligible() {
+        let state = OrchestratorState::new(30000, 10);
+        let mut issue = make_issue("1", "T-1", Some(1), "Todo");
+        issue.blocked_by.push(BlockerRef {
+            id: Some("b1".into()),
+            identifier: Some("BLOCK-1".into()),
+            state: Some("In Progress".into()), // non-terminal
+        });
+        assert!(!is_dispatch_eligible(
+            &issue,
+            &state,
+            &["Done".into()],
+            &["Todo".into()],
+            &HashMap::new()
+        ));
+    }
+
+    #[test]
+    fn todo_with_all_terminal_blockers_eligible() {
+        let state = OrchestratorState::new(30000, 10);
+        let mut issue = make_issue("1", "T-1", Some(1), "Todo");
+        issue.blocked_by.push(BlockerRef {
+            id: Some("b1".into()),
+            identifier: Some("BLOCK-1".into()),
+            state: Some("Done".into()), // terminal
+        });
+        assert!(is_dispatch_eligible(
+            &issue,
+            &state,
+            &["Done".into()],
+            &["Todo".into()],
+            &HashMap::new()
+        ));
+    }
+
+    #[test]
+    fn global_concurrency_limit() {
+        let mut state = OrchestratorState::new(30000, 2);
+        // Fill up both slots
+        for i in 0..2 {
+            let id = format!("running-{i}");
+            state.running.insert(
+                id.clone(),
+                symphony_core::state::RunningEntry {
+                    identifier: format!("R-{i}"),
+                    issue: make_issue(&id, &format!("R-{i}"), Some(1), "Todo"),
+                    session_id: None,
+                    codex_app_server_pid: None,
+                    last_codex_message: None,
+                    last_codex_event: None,
+                    last_codex_timestamp: None,
+                    codex_input_tokens: 0,
+                    codex_output_tokens: 0,
+                    codex_total_tokens: 0,
+                    last_reported_input_tokens: 0,
+                    last_reported_output_tokens: 0,
+                    last_reported_total_tokens: 0,
+                    retry_attempt: None,
+                    started_at: Utc::now(),
+                    turn_count: 0,
+                },
+            );
+        }
+        let issue = make_issue("new", "N-1", Some(1), "Todo");
+        assert!(!is_dispatch_eligible(
+            &issue,
+            &state,
+            &["Done".into()],
+            &["Todo".into()],
+            &HashMap::new()
+        ));
+    }
+
+    #[test]
+    fn per_state_concurrency_limit() {
+        let mut state = OrchestratorState::new(30000, 10);
+        // Add one running "todo" issue
+        state.running.insert(
+            "running-1".into(),
+            symphony_core::state::RunningEntry {
+                identifier: "R-1".into(),
+                issue: make_issue("running-1", "R-1", Some(1), "Todo"),
+                session_id: None,
+                codex_app_server_pid: None,
+                last_codex_message: None,
+                last_codex_event: None,
+                last_codex_timestamp: None,
+                codex_input_tokens: 0,
+                codex_output_tokens: 0,
+                codex_total_tokens: 0,
+                last_reported_input_tokens: 0,
+                last_reported_output_tokens: 0,
+                last_reported_total_tokens: 0,
+                retry_attempt: None,
+                started_at: Utc::now(),
+                turn_count: 0,
+            },
+        );
+        let issue = make_issue("new", "N-1", Some(1), "Todo");
+        let mut per_state = HashMap::new();
+        per_state.insert("todo".into(), 1); // limit 1 for todo
+
+        assert!(!is_dispatch_eligible(
+            &issue,
+            &state,
+            &["Done".into()],
+            &["Todo".into()],
+            &per_state
         ));
     }
 }

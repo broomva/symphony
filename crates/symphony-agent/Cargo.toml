@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 symphony-core.workspace = true
 symphony-config.workspace = true
+symphony-tracker.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

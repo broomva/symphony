@@ -6,4 +6,4 @@
 pub mod protocol;
 pub mod runner;
 
-pub use runner::AgentRunner;
+pub use runner::{AgentRunner, LinearToolConfig};

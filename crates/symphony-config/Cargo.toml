@@ -13,3 +13,5 @@ anyhow.workspace = true
 notify.workspace = true
 tracing.workspace = true
 tokio.workspace = true
+liquid.workspace = true
+chrono.workspace = true

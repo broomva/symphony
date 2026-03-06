@@ -22,10 +22,32 @@ struct Cli {
     port: Option<u16>,
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
+    // Check if explicit path exists (S17.7: nonexistent explicit path → error)
+    if !cli.workflow_path.exists() {
+        eprintln!(
+            "error: workflow file not found: {}",
+            cli.workflow_path.display()
+        );
+        std::process::exit(1);
+    }
+
+    // Build and run the async runtime
+    let rt = tokio::runtime::Runtime::new()?;
+    let result = rt.block_on(run(cli));
+
+    match result {
+        Ok(()) => std::process::exit(0),
+        Err(e) => {
+            eprintln!("error: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+async fn run(cli: Cli) -> anyhow::Result<()> {
     // Initialize logging
     symphony_observability::init_logging();
 
@@ -57,13 +79,19 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    // Determine HTTP port
+    // Determine HTTP port (S13.7: CLI overrides config)
     let server_port = cli.port.or(config.server_port);
 
     // Start HTTP server if configured
     if let Some(port) = server_port {
+        let obs_state = symphony_observability::server::AppState {
+            orchestrator: Arc::new(tokio::sync::Mutex::new(None)),
+            refresh_tx: None,
+        };
         tokio::spawn(async move {
-            if let Err(e) = symphony_observability::server::start_server(port).await {
+            if let Err(e) =
+                symphony_observability::server::start_server_with_state(port, obs_state).await
+            {
                 tracing::error!(%e, "HTTP server failed");
             }
         });
@@ -74,4 +102,63 @@ async fn main() -> anyhow::Result<()> {
     scheduler.run().await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    fn make_valid_workflow() -> NamedTempFile {
+        let mut f = NamedTempFile::new().unwrap();
+        write!(
+            f,
+            "---\ntracker:\n  kind: linear\n  api_key: test-key\n  project_slug: proj\ncodex:\n  command: echo hi\n---\nPrompt body"
+        )
+        .unwrap();
+        f
+    }
+
+    #[test]
+    fn cli_default_workflow_path() {
+        let cli = Cli::parse_from(["symphony"]);
+        assert_eq!(cli.workflow_path, PathBuf::from("WORKFLOW.md"));
+        assert!(cli.port.is_none());
+    }
+
+    #[test]
+    fn cli_explicit_path() {
+        let cli = Cli::parse_from(["symphony", "/tmp/custom.md"]);
+        assert_eq!(cli.workflow_path, PathBuf::from("/tmp/custom.md"));
+    }
+
+    #[test]
+    fn cli_port_flag() {
+        let f = make_valid_workflow();
+        let cli = Cli::parse_from([
+            "symphony",
+            f.path().to_str().unwrap(),
+            "--port",
+            "8080",
+        ]);
+        assert_eq!(cli.port, Some(8080));
+    }
+
+    #[test]
+    fn cli_port_overrides_config() {
+        // CLI --port 8080 should override server.port=3000
+        let cli = Cli::parse_from(["symphony", "--port", "8080"]);
+        let config_port = Some(3000u16);
+        let effective = cli.port.or(config_port);
+        assert_eq!(effective, Some(8080));
+    }
+
+    #[test]
+    fn cli_config_port_used_when_no_flag() {
+        let cli = Cli::parse_from(["symphony"]);
+        let config_port = Some(3000u16);
+        let effective = cli.port.or(config_port);
+        assert_eq!(effective, Some(3000));
+    }
 }

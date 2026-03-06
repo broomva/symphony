@@ -3,7 +3,7 @@
 //! Creates, reuses, and cleans per-issue workspace directories.
 //! Enforces safety invariants (path containment, sanitization).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use symphony_config::types::{HooksConfig, WorkspaceConfig};
 use symphony_core::Workspace;
@@ -19,6 +19,8 @@ pub enum WorkspaceError {
     HookFailed { hook: String, error: String },
     #[error("hook timeout: {hook}")]
     HookTimeout { hook: String },
+    #[error("path is not a directory: {0}")]
+    NotADirectory(String),
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -34,13 +36,31 @@ impl WorkspaceManager {
         Self { config, hooks }
     }
 
-    /// Create or reuse a workspace for the given issue identifier.
+    /// Get the workspace root path.
+    pub fn root(&self) -> &Path {
+        &self.config.root
+    }
+
+    /// Compute workspace path for identifier without creating it.
+    pub fn workspace_path_for(&self, identifier: &str) -> PathBuf {
+        let workspace_key = sanitize_identifier(identifier);
+        self.config.root.join(workspace_key)
+    }
+
+    /// Create or reuse a workspace for the given issue identifier (S9.1-9.2).
     pub async fn create_for_issue(&self, identifier: &str) -> Result<Workspace, WorkspaceError> {
         let workspace_key = sanitize_identifier(identifier);
         let workspace_path = self.config.root.join(&workspace_key);
 
-        // Safety invariant: workspace must be under root
+        // Safety invariant S9.5: workspace must be under root
         self.validate_path_containment(&workspace_path)?;
+
+        // Check for non-directory at path (S17.2)
+        if workspace_path.exists() && !workspace_path.is_dir() {
+            return Err(WorkspaceError::NotADirectory(
+                workspace_path.display().to_string(),
+            ));
+        }
 
         let created_now = !workspace_path.exists();
         if created_now {
@@ -49,14 +69,15 @@ impl WorkspaceManager {
                 .map_err(|e| WorkspaceError::CreationFailed(e.to_string()))?;
         }
 
-        // Run after_create hook only on new workspace
+        // Run after_create hook only on new workspace (S9.4)
         if created_now
             && let Some(hook) = &self.hooks.after_create
-                && let Err(e) = run_hook(hook, &workspace_path, self.hooks.timeout_ms).await {
-                    // Fatal: clean up partial workspace
-                    let _ = tokio::fs::remove_dir_all(&workspace_path).await;
-                    return Err(e);
-                }
+            && let Err(e) = run_hook(hook, &workspace_path, self.hooks.timeout_ms).await
+        {
+            // Fatal: clean up partial workspace
+            let _ = tokio::fs::remove_dir_all(&workspace_path).await;
+            return Err(e);
+        }
 
         Ok(Workspace {
             path: workspace_path,
@@ -65,7 +86,7 @@ impl WorkspaceManager {
         })
     }
 
-    /// Run the before_run hook. Failure aborts the attempt.
+    /// Run the before_run hook. Failure aborts the attempt (S9.4).
     pub async fn before_run(&self, workspace_path: &Path) -> Result<(), WorkspaceError> {
         if let Some(hook) = &self.hooks.before_run {
             run_hook(hook, workspace_path, self.hooks.timeout_ms).await?;
@@ -73,25 +94,27 @@ impl WorkspaceManager {
         Ok(())
     }
 
-    /// Run the after_run hook. Failure is logged and ignored.
+    /// Run the after_run hook. Failure is logged and ignored (S9.4).
     pub async fn after_run(&self, workspace_path: &Path) {
         if let Some(hook) = &self.hooks.after_run
-            && let Err(e) = run_hook(hook, workspace_path, self.hooks.timeout_ms).await {
-                tracing::warn!(%e, "after_run hook failed (ignored)");
-            }
+            && let Err(e) = run_hook(hook, workspace_path, self.hooks.timeout_ms).await
+        {
+            tracing::warn!(%e, "after_run hook failed (ignored)");
+        }
     }
 
-    /// Clean a workspace directory for a terminal issue.
+    /// Clean a workspace directory for a terminal issue (S8.5, S8.6).
     pub async fn clean(&self, identifier: &str) -> Result<(), WorkspaceError> {
         let workspace_key = sanitize_identifier(identifier);
         let workspace_path = self.config.root.join(&workspace_key);
 
         if workspace_path.exists() {
-            // Run before_remove hook
+            // Run before_remove hook (S9.4: failure logged and ignored)
             if let Some(hook) = &self.hooks.before_remove
-                && let Err(e) = run_hook(hook, &workspace_path, self.hooks.timeout_ms).await {
-                    tracing::warn!(%e, "before_remove hook failed (ignored)");
-                }
+                && let Err(e) = run_hook(hook, &workspace_path, self.hooks.timeout_ms).await
+            {
+                tracing::warn!(%e, "before_remove hook failed (ignored)");
+            }
 
             tokio::fs::remove_dir_all(&workspace_path)
                 .await
@@ -101,15 +124,28 @@ impl WorkspaceManager {
         Ok(())
     }
 
+    /// Validate path containment (S9.5 Invariant 2).
     fn validate_path_containment(&self, workspace_path: &Path) -> Result<(), WorkspaceError> {
+        // Normalize both paths to absolute; workspace_path must have workspace_root as prefix.
+        // First try to canonicalize the root (resolves symlinks like /var -> /private/var on macOS).
         let root = self
             .config
             .root
             .canonicalize()
             .unwrap_or_else(|_| self.config.root.clone());
-        let ws = workspace_path
-            .canonicalize()
-            .unwrap_or_else(|_| workspace_path.to_path_buf());
+
+        // For workspace_path, it may not exist yet. Use the canonicalized root + relative part.
+        let ws = if workspace_path.exists() {
+            workspace_path
+                .canonicalize()
+                .unwrap_or_else(|_| workspace_path.to_path_buf())
+        } else {
+            // Construct from canonicalized root + the relative portion
+            let rel = workspace_path
+                .strip_prefix(&self.config.root)
+                .unwrap_or(workspace_path.as_ref());
+            root.join(rel)
+        };
 
         if !ws.starts_with(&root) {
             return Err(WorkspaceError::PathEscapesRoot {
@@ -121,7 +157,7 @@ impl WorkspaceManager {
     }
 }
 
-/// Sanitize an identifier to a workspace-safe key.
+/// Sanitize an identifier to a workspace-safe key (S4.2, S9.5 Invariant 3).
 /// Only `[A-Za-z0-9._-]` allowed; replace all others with `_`.
 pub fn sanitize_identifier(identifier: &str) -> String {
     identifier
@@ -136,7 +172,7 @@ pub fn sanitize_identifier(identifier: &str) -> String {
         .collect()
 }
 
-/// Execute a hook script in the workspace directory with a timeout.
+/// Execute a hook script in the workspace directory with a timeout (S9.4).
 async fn run_hook(script: &str, cwd: &Path, timeout_ms: u64) -> Result<(), WorkspaceError> {
     use tokio::process::Command;
 
@@ -174,6 +210,9 @@ async fn run_hook(script: &str, cwd: &Path, timeout_ms: u64) -> Result<(), Works
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+
+    // ── Sanitization tests (S4.2, S9.5 Invariant 3) ──
 
     #[test]
     fn sanitize_basic_identifier() {
@@ -188,5 +227,240 @@ mod tests {
     #[test]
     fn sanitize_preserves_dots_underscores_hyphens() {
         assert_eq!(sanitize_identifier("v1.0_beta-2"), "v1.0_beta-2");
+    }
+
+    #[test]
+    fn sanitize_traversal_attack() {
+        // S9.5: "../etc" → dots are allowed, slash replaced: ".._etc"
+        assert_eq!(sanitize_identifier("../etc"), ".._etc");
+    }
+
+    #[test]
+    fn sanitize_spaces_and_special() {
+        assert_eq!(sanitize_identifier("my issue @#$"), "my_issue____");
+    }
+
+    // ── Workspace creation/reuse (S9.1-9.2) ──
+
+    #[tokio::test]
+    async fn create_new_workspace() {
+        let dir = tempfile::tempdir().unwrap();
+        let mgr = WorkspaceManager::new(
+            WorkspaceConfig {
+                root: dir.path().to_path_buf(),
+            },
+            HooksConfig::default(),
+        );
+
+        let ws = mgr.create_for_issue("ABC-123").await.unwrap();
+        assert!(ws.created_now);
+        assert_eq!(ws.workspace_key, "ABC-123");
+        assert!(ws.path.exists());
+        assert!(ws.path.is_dir());
+    }
+
+    #[tokio::test]
+    async fn reuse_existing_workspace() {
+        let dir = tempfile::tempdir().unwrap();
+        let ws_dir = dir.path().join("ABC-123");
+        std::fs::create_dir_all(&ws_dir).unwrap();
+
+        let mgr = WorkspaceManager::new(
+            WorkspaceConfig {
+                root: dir.path().to_path_buf(),
+            },
+            HooksConfig::default(),
+        );
+
+        let ws = mgr.create_for_issue("ABC-123").await.unwrap();
+        assert!(!ws.created_now); // reused
+        assert_eq!(ws.workspace_key, "ABC-123");
+    }
+
+    #[tokio::test]
+    async fn same_identifier_same_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let mgr = WorkspaceManager::new(
+            WorkspaceConfig {
+                root: dir.path().to_path_buf(),
+            },
+            HooksConfig::default(),
+        );
+
+        let ws1 = mgr.create_for_issue("ABC-123").await.unwrap();
+        let ws2 = mgr.create_for_issue("ABC-123").await.unwrap();
+        assert_eq!(ws1.path, ws2.path);
+    }
+
+    #[tokio::test]
+    async fn non_directory_at_path_returns_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("ABC-123");
+        std::fs::write(&file_path, "not a dir").unwrap();
+
+        let mgr = WorkspaceManager::new(
+            WorkspaceConfig {
+                root: dir.path().to_path_buf(),
+            },
+            HooksConfig::default(),
+        );
+
+        let err = mgr.create_for_issue("ABC-123").await.unwrap_err();
+        assert!(matches!(err, WorkspaceError::NotADirectory(_)));
+    }
+
+    // ── Hook execution (S9.4) ──
+
+    #[tokio::test]
+    async fn after_create_runs_on_new() {
+        let dir = tempfile::tempdir().unwrap();
+        let mgr = WorkspaceManager::new(
+            WorkspaceConfig {
+                root: dir.path().to_path_buf(),
+            },
+            HooksConfig {
+                after_create: Some("touch after_create_ran".into()),
+                timeout_ms: 5000,
+                ..Default::default()
+            },
+        );
+
+        let ws = mgr.create_for_issue("HOOK-1").await.unwrap();
+        assert!(ws.created_now);
+        assert!(ws.path.join("after_create_ran").exists());
+    }
+
+    #[tokio::test]
+    async fn after_create_failure_removes_workspace() {
+        let dir = tempfile::tempdir().unwrap();
+        let mgr = WorkspaceManager::new(
+            WorkspaceConfig {
+                root: dir.path().to_path_buf(),
+            },
+            HooksConfig {
+                after_create: Some("exit 1".into()),
+                timeout_ms: 5000,
+                ..Default::default()
+            },
+        );
+
+        let err = mgr.create_for_issue("HOOK-2").await.unwrap_err();
+        assert!(matches!(err, WorkspaceError::HookFailed { .. }));
+        // Workspace directory should be cleaned up
+        assert!(!dir.path().join("HOOK-2").exists());
+    }
+
+    #[tokio::test]
+    async fn before_run_failure_returns_error() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("ws")).unwrap();
+        let mgr = WorkspaceManager::new(
+            WorkspaceConfig {
+                root: dir.path().to_path_buf(),
+            },
+            HooksConfig {
+                before_run: Some("exit 1".into()),
+                timeout_ms: 5000,
+                ..Default::default()
+            },
+        );
+
+        let err = mgr.before_run(&dir.path().join("ws")).await.unwrap_err();
+        assert!(matches!(err, WorkspaceError::HookFailed { .. }));
+    }
+
+    #[tokio::test]
+    async fn after_run_failure_is_ignored() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("ws")).unwrap();
+        let mgr = WorkspaceManager::new(
+            WorkspaceConfig {
+                root: dir.path().to_path_buf(),
+            },
+            HooksConfig {
+                after_run: Some("exit 1".into()),
+                timeout_ms: 5000,
+                ..Default::default()
+            },
+        );
+
+        // Should not panic or return error
+        mgr.after_run(&dir.path().join("ws")).await;
+    }
+
+    #[tokio::test]
+    async fn hook_timeout_produces_error() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("ws")).unwrap();
+
+        let err = run_hook("sleep 10", &dir.path().join("ws"), 100)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, WorkspaceError::HookTimeout { .. }));
+    }
+
+    // ── Cleanup (S8.5, S8.6) ──
+
+    #[tokio::test]
+    async fn clean_removes_workspace() {
+        let dir = tempfile::tempdir().unwrap();
+        let ws_dir = dir.path().join("TERM-1");
+        std::fs::create_dir_all(&ws_dir).unwrap();
+        std::fs::write(ws_dir.join("file.txt"), "data").unwrap();
+
+        let mgr = WorkspaceManager::new(
+            WorkspaceConfig {
+                root: dir.path().to_path_buf(),
+            },
+            HooksConfig::default(),
+        );
+
+        mgr.clean("TERM-1").await.unwrap();
+        assert!(!ws_dir.exists());
+    }
+
+    #[tokio::test]
+    async fn clean_nonexistent_is_ok() {
+        let dir = tempfile::tempdir().unwrap();
+        let mgr = WorkspaceManager::new(
+            WorkspaceConfig {
+                root: dir.path().to_path_buf(),
+            },
+            HooksConfig::default(),
+        );
+
+        mgr.clean("NONEXISTENT").await.unwrap();
+    }
+
+    // ── Path containment (S9.5) ──
+
+    #[test]
+    fn path_containment_valid() {
+        let dir = tempfile::tempdir().unwrap();
+        let mgr = WorkspaceManager::new(
+            WorkspaceConfig {
+                root: dir.path().to_path_buf(),
+            },
+            HooksConfig::default(),
+        );
+        let path = dir.path().join("valid-workspace");
+        assert!(mgr.validate_path_containment(&path).is_ok());
+    }
+
+    #[test]
+    fn path_containment_traversal_attack_sanitized() {
+        // Traversal "../etc" gets sanitized to "_.._etc" by sanitize_identifier
+        // so the resulting path stays under root
+        let dir = tempfile::tempdir().unwrap();
+        let key = sanitize_identifier("../etc");
+        assert_eq!(key, ".._etc");
+        let path = dir.path().join(&key);
+        let mgr = WorkspaceManager::new(
+            WorkspaceConfig {
+                root: dir.path().to_path_buf(),
+            },
+            HooksConfig::default(),
+        );
+        assert!(mgr.validate_path_containment(&path).is_ok());
     }
 }
