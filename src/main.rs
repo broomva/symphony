@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use clap::Parser;
-use tokio::sync::watch;
+use tokio::sync::{watch, Mutex};
 
 /// Symphony: orchestrate coding agents for project work.
 #[derive(Parser, Debug)]
@@ -59,6 +59,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
     // Load workflow
     let workflow_def = symphony_config::loader::load_workflow(&cli.workflow_path)?;
     let config = symphony_config::loader::extract_config(&workflow_def);
+    let prompt_template = workflow_def.prompt_template.clone();
 
     // Validate config
     if let Err(errors) = symphony_config::loader::validate_dispatch_config(&config) {
@@ -79,26 +80,60 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         }
     });
 
+    // Build tracker client
+    let tracker: Arc<dyn symphony_tracker::TrackerClient> = Arc::new(
+        symphony_tracker::linear::LinearClient::new(
+            config.tracker.endpoint.clone(),
+            config.tracker.api_key.clone(),
+            config.tracker.project_slug.clone(),
+            config.tracker.active_states.clone(),
+        ),
+    );
+
+    // Build workspace manager
+    let workspace_mgr = Arc::new(symphony_workspace::WorkspaceManager::new(
+        config.workspace.clone(),
+        config.hooks.clone(),
+    ));
+
+    // Ensure workspace root exists
+    tokio::fs::create_dir_all(&config.workspace.root).await?;
+
+    // Shared observability state
+    let obs_state: Arc<Mutex<Option<symphony_core::OrchestratorState>>> =
+        Arc::new(Mutex::new(None));
+
+    // Refresh channel for immediate poll trigger
+    let (refresh_tx, refresh_rx) = tokio::sync::mpsc::channel(1);
+
     // Determine HTTP port (S13.7: CLI overrides config)
     let server_port = cli.port.or(config.server_port);
 
     // Start HTTP server if configured
     if let Some(port) = server_port {
-        let obs_state = symphony_observability::server::AppState {
-            orchestrator: Arc::new(tokio::sync::Mutex::new(None)),
-            refresh_tx: None,
+        let app_state = symphony_observability::server::AppState {
+            orchestrator: obs_state.clone(),
+            refresh_tx: Some(refresh_tx),
         };
         tokio::spawn(async move {
             if let Err(e) =
-                symphony_observability::server::start_server_with_state(port, obs_state).await
+                symphony_observability::server::start_server_with_state(port, app_state).await
             {
                 tracing::error!(%e, "HTTP server failed");
             }
         });
     }
 
-    // Start scheduler
-    let mut scheduler = symphony_orchestrator::Scheduler::new(config, config_rx);
+    // Start scheduler with real tracker, workspace manager, and prompt template
+    let mut scheduler = symphony_orchestrator::Scheduler::new(
+        config,
+        config_rx,
+        tracker,
+        workspace_mgr,
+        prompt_template,
+        obs_state,
+        Some(refresh_rx),
+    );
     scheduler.run().await?;
 
     Ok(())

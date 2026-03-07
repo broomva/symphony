@@ -229,11 +229,13 @@ query IssuesByStates($projectSlug: String!, $states: [String!]!, $first: Int!, $
 "#;
 
 /// GraphQL query for fetching issue states by IDs (S11.2).
-/// Uses `[ID!]` variable type per spec.
 const ISSUE_STATES_BY_IDS_QUERY: &str = r#"
-query IssueStatesByIds($ids: [ID!]!) {
-  nodes(ids: $ids) {
-    ... on Issue {
+query IssueStatesByIds($ids: [UUID!], $first: Int!) {
+  issues(
+    filter: { id: { in: $ids } }
+    first: $first
+  ) {
+    nodes {
       id
       identifier
       title
@@ -301,14 +303,18 @@ impl TrackerClient for LinearClient {
             return Ok(vec![]);
         }
 
-        let variables = serde_json::json!({ "ids": issue_ids });
+        let variables = serde_json::json!({
+            "ids": issue_ids,
+            "first": issue_ids.len(),
+        });
         let data = self.graphql_query(ISSUE_STATES_BY_IDS_QUERY, variables).await?;
 
         let nodes = data
-            .get("nodes")
+            .get("issues")
+            .and_then(|i| i.get("nodes"))
             .and_then(|n| n.as_array())
             .ok_or_else(|| {
-                TrackerError::UnknownPayload("missing 'nodes' in response".into())
+                TrackerError::UnknownPayload("missing 'issues.nodes' in response".into())
             })?;
 
         let mut issues = Vec::new();

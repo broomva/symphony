@@ -72,7 +72,13 @@ impl WorkspaceManager {
         // Run after_create hook only on new workspace (S9.4)
         if created_now
             && let Some(hook) = &self.hooks.after_create
-            && let Err(e) = run_hook(hook, &workspace_path, self.hooks.timeout_ms).await
+            && let Err(e) = run_hook_with_env(
+                hook,
+                &workspace_path,
+                self.hooks.timeout_ms,
+                &[("SYMPHONY_ISSUE_ID", identifier)],
+            )
+            .await
         {
             // Fatal: clean up partial workspace
             let _ = tokio::fs::remove_dir_all(&workspace_path).await;
@@ -88,16 +94,42 @@ impl WorkspaceManager {
 
     /// Run the before_run hook. Failure aborts the attempt (S9.4).
     pub async fn before_run(&self, workspace_path: &Path) -> Result<(), WorkspaceError> {
+        self.before_run_with_id(workspace_path, "").await
+    }
+
+    /// Run the before_run hook with issue identifier. Failure aborts the attempt (S9.4).
+    pub async fn before_run_with_id(
+        &self,
+        workspace_path: &Path,
+        identifier: &str,
+    ) -> Result<(), WorkspaceError> {
         if let Some(hook) = &self.hooks.before_run {
-            run_hook(hook, workspace_path, self.hooks.timeout_ms).await?;
+            run_hook_with_env(
+                hook,
+                workspace_path,
+                self.hooks.timeout_ms,
+                &[("SYMPHONY_ISSUE_ID", identifier)],
+            )
+            .await?;
         }
         Ok(())
     }
 
     /// Run the after_run hook. Failure is logged and ignored (S9.4).
     pub async fn after_run(&self, workspace_path: &Path) {
+        self.after_run_with_id(workspace_path, "").await;
+    }
+
+    /// Run the after_run hook with issue identifier. Failure is logged and ignored (S9.4).
+    pub async fn after_run_with_id(&self, workspace_path: &Path, identifier: &str) {
         if let Some(hook) = &self.hooks.after_run
-            && let Err(e) = run_hook(hook, workspace_path, self.hooks.timeout_ms).await
+            && let Err(e) = run_hook_with_env(
+                hook,
+                workspace_path,
+                self.hooks.timeout_ms,
+                &[("SYMPHONY_ISSUE_ID", identifier)],
+            )
+            .await
         {
             tracing::warn!(%e, "after_run hook failed (ignored)");
         }
@@ -111,7 +143,13 @@ impl WorkspaceManager {
         if workspace_path.exists() {
             // Run before_remove hook (S9.4: failure logged and ignored)
             if let Some(hook) = &self.hooks.before_remove
-                && let Err(e) = run_hook(hook, &workspace_path, self.hooks.timeout_ms).await
+                && let Err(e) = run_hook_with_env(
+                    hook,
+                    &workspace_path,
+                    self.hooks.timeout_ms,
+                    &[("SYMPHONY_ISSUE_ID", identifier)],
+                )
+                .await
             {
                 tracing::warn!(%e, "before_remove hook failed (ignored)");
             }
@@ -173,15 +211,24 @@ pub fn sanitize_identifier(identifier: &str) -> String {
 }
 
 /// Execute a hook script in the workspace directory with a timeout (S9.4).
-async fn run_hook(script: &str, cwd: &Path, timeout_ms: u64) -> Result<(), WorkspaceError> {
+/// Accepts optional environment variables to pass to the script.
+async fn run_hook_with_env(
+    script: &str,
+    cwd: &Path,
+    timeout_ms: u64,
+    env_vars: &[(&str, &str)],
+) -> Result<(), WorkspaceError> {
     use tokio::process::Command;
+
+    let mut cmd = Command::new("sh");
+    cmd.args(["-lc", script]).current_dir(cwd);
+    for (key, val) in env_vars {
+        cmd.env(key, val);
+    }
 
     let result = tokio::time::timeout(
         std::time::Duration::from_millis(timeout_ms),
-        Command::new("sh")
-            .args(["-lc", script])
-            .current_dir(cwd)
-            .output(),
+        cmd.output(),
     )
     .await;
 
@@ -393,7 +440,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join("ws")).unwrap();
 
-        let err = run_hook("sleep 10", &dir.path().join("ws"), 100)
+        let err = run_hook_with_env("sleep 10", &dir.path().join("ws"), 100, &[])
             .await
             .unwrap_err();
         assert!(matches!(err, WorkspaceError::HookTimeout { .. }));

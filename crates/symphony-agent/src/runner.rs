@@ -497,6 +497,114 @@ impl AgentRunner {
         }
     }
 
+    /// Launch a simple (non-JSON-RPC) agent session.
+    ///
+    /// Pipes the prompt as stdin to the command and waits for completion.
+    /// Used for CLI agents like `claude` that don't speak JSON-RPC.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn run_simple_session(
+        &self,
+        workspace_path: &Path,
+        prompt: &str,
+        issue_identifier: &str,
+        _issue_title: &str,
+        _attempt: Option<u32>,
+        _max_turns: u32,
+        on_event: &EventCallback,
+    ) -> Result<AgentSession, AgentError> {
+        if !workspace_path.is_dir() {
+            return Err(AgentError::InvalidWorkspaceCwd(
+                workspace_path.display().to_string(),
+            ));
+        }
+
+        // Build command: append `-p` with the prompt for claude CLI
+        let full_command = format!("{} -p {}", self.codex_config.command, shell_escape(prompt));
+
+        let mut child = tokio::process::Command::new("bash")
+            .args(["-lc", &full_command])
+            .current_dir(workspace_path)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    AgentError::CodexNotFound(self.codex_config.command.clone())
+                } else {
+                    AgentError::Io(e)
+                }
+            })?;
+
+        let pid = child.id().map(|p| p.to_string());
+        let session_id = format!("simple-{issue_identifier}");
+
+        on_event(AgentEvent::SessionStarted {
+            session_id: session_id.clone(),
+            thread_id: session_id.clone(),
+            turn_id: "turn-1".into(),
+            pid: pid.clone(),
+        });
+
+        // Log stdout and stderr in background
+        if let Some(stdout) = child.stdout.take() {
+            let ident = issue_identifier.to_string();
+            tokio::spawn(async move {
+                let mut reader = BufReader::new(stdout);
+                let mut line = String::new();
+                while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
+                    tracing::info!(identifier = %ident, stdout = line.trim(), "agent output");
+                    line.clear();
+                }
+            });
+        }
+        if let Some(stderr) = child.stderr.take() {
+            let ident = issue_identifier.to_string();
+            tokio::spawn(async move {
+                let mut reader = BufReader::new(stderr);
+                let mut line = String::new();
+                while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
+                    tracing::debug!(identifier = %ident, stderr = line.trim(), "agent stderr");
+                    line.clear();
+                }
+            });
+        }
+
+        // Wait for completion with timeout
+        let result = tokio::time::timeout(
+            std::time::Duration::from_millis(self.codex_config.turn_timeout_ms),
+            child.wait(),
+        )
+        .await;
+
+        match result {
+            Ok(Ok(status)) => {
+                if status.success() {
+                    on_event(AgentEvent::TurnCompleted { usage: None });
+                    Ok(AgentSession {
+                        thread_id: session_id.clone(),
+                        turn_id: "turn-1".into(),
+                        session_id,
+                        turn_count: 1,
+                        token_usage: TokenUsage::default(),
+                    })
+                } else {
+                    let msg = format!("agent exited with status: {status}");
+                    on_event(AgentEvent::TurnFailed {
+                        error: msg.clone(),
+                        usage: None,
+                    });
+                    Err(AgentError::TurnFailed(msg))
+                }
+            }
+            Ok(Err(e)) => Err(AgentError::Io(e)),
+            Err(_) => {
+                let _ = child.kill().await;
+                Err(AgentError::TurnTimeout)
+            }
+        }
+    }
+
     /// Launch a coding agent session in the given workspace (S10.1-10.6).
     ///
     /// Handles: subprocess launch → handshake → turn streaming → multi-turn loop.
@@ -634,6 +742,13 @@ impl AgentRunner {
             TurnOutcome::ProcessExit => Err(AgentError::ProcessExit),
         }
     }
+}
+
+/// Shell-escape a string for safe embedding in a command.
+fn shell_escape(s: &str) -> String {
+    // Use single quotes and escape any embedded single quotes
+    let escaped = s.replace('\'', "'\\''");
+    format!("'{escaped}'")
 }
 
 #[cfg(test)]
