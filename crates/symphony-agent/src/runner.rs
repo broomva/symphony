@@ -524,6 +524,7 @@ impl AgentRunner {
         let mut child = tokio::process::Command::new("bash")
             .args(["-lc", &full_command])
             .current_dir(workspace_path)
+            .env_remove("CLAUDECODE")
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -564,7 +565,7 @@ impl AgentRunner {
                 let mut reader = BufReader::new(stderr);
                 let mut line = String::new();
                 while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
-                    tracing::debug!(identifier = %ident, stderr = line.trim(), "agent stderr");
+                    tracing::warn!(identifier = %ident, stderr = line.trim(), "agent stderr");
                     line.clear();
                 }
             });

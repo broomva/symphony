@@ -230,7 +230,7 @@ query IssuesByStates($projectSlug: String!, $states: [String!]!, $first: Int!, $
 
 /// GraphQL query for fetching issue states by IDs (S11.2).
 const ISSUE_STATES_BY_IDS_QUERY: &str = r#"
-query IssueStatesByIds($ids: [UUID!], $first: Int!) {
+query IssueStatesByIds($ids: [ID!], $first: Int!) {
   issues(
     filter: { id: { in: $ids } }
     first: $first
