@@ -1,17 +1,22 @@
 filters:
   and:
-    - file.hasTag("crate")
-    - file.inFolder("docs/crates")
+    - 'type == "crate"'
+    - 'status != "archived"'
 
 formulas:
-  spec_section: 'if(tags, tags.join(", "), "")'
   last_modified: 'file.mtime.format("YYYY-MM-DD")'
+  links_out: 'file.links.length'
+  links_in: 'file.backlinks.length'
 
 properties:
   file.name:
     displayName: "Crate"
-  formula.spec_section:
-    displayName: "Tags"
+  area:
+    displayName: "Domain"
+  formula.links_out:
+    displayName: "Links Out"
+  formula.links_in:
+    displayName: "Links In"
   formula.last_modified:
     displayName: "Last Modified"
 
@@ -20,8 +25,20 @@ views:
     name: "All Crates"
     order:
       - file.name
-      - formula.spec_section
+      - area
+      - formula.links_out
+      - formula.links_in
       - formula.last_modified
-      - file.size
     summaries:
-      file.size: Sum
+      formula.links_out: Sum
+      formula.links_in: Sum
+
+  - type: table
+    name: "By Domain"
+    order:
+      - file.name
+      - area
+      - formula.last_modified
+    groupBy:
+      property: area
+      direction: ASC

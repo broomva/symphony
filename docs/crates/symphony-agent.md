@@ -4,6 +4,9 @@ tags:
   - crate
   - agent
   - jsonrpc
+type: crate
+status: active
+area: agent
 created: 2026-03-16
 ---
 

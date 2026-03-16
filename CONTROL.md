@@ -3,6 +3,9 @@ tags:
   - symphony
   - control
   - quality
+type: operations
+status: active
+area: quality
 aliases:
   - Control
   - Control Metalayer

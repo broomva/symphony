@@ -3,6 +3,9 @@ tags:
   - symphony
   - crate
   - domain
+type: crate
+status: active
+area: core
 created: 2026-03-16
 ---
 

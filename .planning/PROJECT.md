@@ -2,6 +2,9 @@
 tags:
   - symphony
   - planning
+type: planning
+status: active
+area: project
 aliases:
   - Project Vision
 created: 2026-03-06

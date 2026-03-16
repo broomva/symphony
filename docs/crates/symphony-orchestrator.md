@@ -4,6 +4,9 @@ tags:
   - crate
   - orchestrator
   - scheduling
+type: crate
+status: active
+area: orchestrator
 created: 2026-03-16
 ---
 

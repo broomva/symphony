@@ -2,6 +2,11 @@
 tags:
   - symphony
   - architecture
+type: architecture
+status: active
+area: system
+aliases:
+  - Architecture
 created: 2026-03-16
 ---
 

@@ -2,6 +2,9 @@
 tags:
   - symphony
   - meta
+type: reference
+status: active
+area: development
 aliases:
   - Claude Rules
 created: 2026-03-06

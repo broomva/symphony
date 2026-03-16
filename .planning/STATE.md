@@ -3,6 +3,9 @@ tags:
   - symphony
   - planning
   - status
+type: planning
+status: active
+area: project
 aliases:
   - State
   - Project State

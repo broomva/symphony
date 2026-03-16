@@ -3,6 +3,9 @@ tags:
   - symphony
   - architecture
   - domain
+type: architecture
+status: active
+area: core
 created: 2026-03-16
 ---
 

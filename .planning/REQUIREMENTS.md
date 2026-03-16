@@ -3,6 +3,9 @@ tags:
   - symphony
   - planning
   - conformance
+type: planning
+status: active
+area: conformance
 aliases:
   - Requirements
   - Spec Conformance

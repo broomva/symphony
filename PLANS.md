@@ -3,6 +3,9 @@ tags:
   - symphony
   - roadmap
   - planning
+type: roadmap
+status: active
+area: project
 aliases:
   - Plans
   - Implementation Roadmap

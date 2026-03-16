@@ -2,6 +2,9 @@
 tags:
   - symphony
   - index
+type: moc
+status: active
+area: vault
 aliases:
   - Home
   - Symphony

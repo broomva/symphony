@@ -2,6 +2,9 @@
 tags:
   - symphony
   - contributing
+type: reference
+status: active
+area: community
 aliases:
   - Contributing
 created: 2026-03-06

@@ -4,7 +4,7 @@ filters:
     - 'file.ext == "md"'
 
 formulas:
-  has_frontmatter: 'if(tags, "Yes", "No")'
+  has_type: 'if(type, "Yes", "No")'
   links_out: 'file.links.length'
   links_in: 'file.backlinks.length'
   connectivity: 'if(file.links.length > 0 && file.backlinks.length > 0, "Connected", if(file.links.length == 0 && file.backlinks.length == 0, "Orphan", if(file.links.length == 0, "Dead End", "Hub")))'
@@ -13,14 +13,16 @@ formulas:
 properties:
   file.name:
     displayName: "Note"
-  formula.has_frontmatter:
-    displayName: "Frontmatter"
+  type:
+    displayName: "Type"
+  status:
+    displayName: "Status"
+  formula.connectivity:
+    displayName: "Graph Status"
   formula.links_out:
     displayName: "Links Out"
   formula.links_in:
     displayName: "Links In"
-  formula.connectivity:
-    displayName: "Status"
   formula.location:
     displayName: "Folder"
 
@@ -29,10 +31,12 @@ views:
     name: "All Vault Notes"
     order:
       - file.name
-      - formula.location
+      - type
+      - status
       - formula.connectivity
       - formula.links_out
       - formula.links_in
+      - formula.location
     groupBy:
       property: formula.connectivity
       direction: ASC
@@ -41,13 +45,27 @@ views:
       formula.links_in: Sum
 
   - type: table
-    name: "Disconnected Notes"
+    name: "By Type"
+    order:
+      - file.name
+      - type
+      - area
+      - status
+    groupBy:
+      property: type
+      direction: ASC
+
+  - type: table
+    name: "Needs Attention"
     filters:
       or:
         - 'file.links.length == 0'
         - 'file.backlinks.length == 0'
+        - 'status == "stale"'
+        - 'status == "draft"'
     order:
       - file.name
       - formula.connectivity
+      - status
       - formula.links_out
       - formula.links_in

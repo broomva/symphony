@@ -3,6 +3,9 @@ tags:
   - symphony
   - planning
   - roadmap
+type: planning
+status: active
+area: project
 aliases:
   - Roadmap Graph
   - Phase Dependency Graph

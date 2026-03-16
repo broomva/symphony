@@ -4,6 +4,9 @@ tags:
   - crate
   - workspace
   - security
+type: crate
+status: active
+area: workspace
 created: 2026-03-16
 ---
 

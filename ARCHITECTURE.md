@@ -3,6 +3,9 @@ tags:
   - symphony
   - architecture
   - decision
+type: decision
+status: active
+area: business
 aliases:
   - Architecture Decision
   - Open Core Model

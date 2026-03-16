@@ -3,6 +3,9 @@ tags:
   - symphony
   - architecture
   - meta
+type: reference
+status: active
+area: development
 aliases:
   - Agents Guide
 created: 2026-03-06

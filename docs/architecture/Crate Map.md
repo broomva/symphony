@@ -3,6 +3,9 @@ tags:
   - symphony
   - architecture
   - crate
+type: architecture
+status: active
+area: system
 created: 2026-03-16
 ---
 

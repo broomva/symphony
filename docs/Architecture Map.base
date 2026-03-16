@@ -1,32 +1,49 @@
 filters:
-  and:
-    - file.hasTag("architecture")
-    - 'file.ext == "md"'
+  or:
+    - 'type == "architecture"'
+    - 'type == "decision"'
+    - 'type == "spec"'
 
 formulas:
-  note_type: 'if(file.inFolder("docs/crates"), "Crate Doc", if(file.inFolder("docs/architecture"), "Architecture", if(file.inFolder(".planning"), "Planning", "Root")))'
   link_count: 'file.links.length'
   backlink_count: 'file.backlinks.length'
+  last_modified: 'file.mtime.format("YYYY-MM-DD")'
 
 properties:
   file.name:
     displayName: "Note"
-  formula.note_type:
+  type:
     displayName: "Type"
+  area:
+    displayName: "Domain"
   formula.link_count:
     displayName: "Links Out"
   formula.backlink_count:
     displayName: "Links In"
+  formula.last_modified:
+    displayName: "Modified"
 
 views:
   - type: table
-    name: "Architecture Notes"
+    name: "Architecture & Design"
     order:
       - file.name
-      - formula.note_type
+      - type
+      - area
       - formula.link_count
       - formula.backlink_count
-      - file.mtime
+      - formula.last_modified
     groupBy:
-      property: formula.note_type
+      property: type
       direction: ASC
+
+  - type: table
+    name: "Decisions (ADRs)"
+    filters:
+      and:
+        - 'type == "decision"'
+    order:
+      - file.name
+      - area
+      - status
+      - created

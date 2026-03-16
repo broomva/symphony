@@ -1,6 +1,9 @@
 ---
 tags:
   - symphony
+type: reference
+status: active
+area: project
 aliases:
   - README
 created: 2026-03-06

@@ -3,6 +3,9 @@ tags:
   - symphony
   - spec
   - reference
+type: spec
+status: active
+area: system
 aliases:
   - Spec
   - Specification

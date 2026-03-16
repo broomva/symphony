@@ -3,6 +3,9 @@ tags:
   - symphony
   - crate
   - config
+type: crate
+status: active
+area: config
 created: 2026-03-16
 ---
 

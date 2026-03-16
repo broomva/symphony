@@ -3,6 +3,9 @@ tags:
   - symphony
   - roadmap
   - status
+type: roadmap
+status: active
+area: project
 created: 2026-03-16
 ---
 

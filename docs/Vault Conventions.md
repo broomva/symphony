@@ -2,6 +2,9 @@
 tags:
   - symphony
   - meta
+type: reference
+status: active
+area: vault
 aliases:
   - Conventions
   - Documentation Standards
@@ -61,11 +64,52 @@ Every `.md` note in `docs/` and `.planning/` MUST have:
 tags:
   - symphony
   - <category>        # at least one from the category list
+type: <note-type>     # what IS this note (see table below)
+status: active        # lifecycle state (see table below)
+area: <domain>        # system domain (e.g., orchestrator, config)
 aliases:
   - <short name>      # for quick search (e.g., "Crate Map")
 created: YYYY-MM-DD
 ---
 ```
+
+### Property Reference
+
+| Property | Required | Values | Purpose |
+|----------|----------|--------|---------|
+| `tags` | Yes | list | Graph coloring, inline search |
+| `type` | Yes | see below | Note classification, Bases grouping |
+| `status` | Yes | see below | Lifecycle state, Bases filtering |
+| `area` | Recommended | free text | System domain/module |
+| `aliases` | Recommended | list | Alternative names for search |
+| `created` | Yes | date | Creation date |
+
+### Type Values
+
+| Value | Use For |
+|-------|---------|
+| `crate` | Per-crate documentation |
+| `architecture` | System design, architecture overviews |
+| `decision` | Architecture Decision Records (ADRs) |
+| `spec` | Specification reference |
+| `operations` | Runbooks, config, build procedures |
+| `roadmap` | Plans, status, milestones |
+| `planning` | Requirements, state tracking |
+| `reference` | Conventions, guides, external references |
+| `moc` | Map of Content / navigation hub |
+
+### Status Values
+
+| Value | Meaning |
+|-------|---------|
+| `active` | Current and maintained |
+| `draft` | Work in progress |
+| `stale` | May be outdated, needs review |
+| `archived` | No longer relevant, kept for history |
+| `superseded` | Replaced by another note |
+
+> [!tip] Properties vs Tags
+> Use **properties** (`type`, `status`) for structured metadata that Bases queries. Use **tags** for graph coloring and quick inline markers. Don't duplicate — if `status` is a property, don't also use a `#status/active` tag.
 
 Root governance files (README, CLAUDE, AGENTS, etc.) SHOULD have frontmatter for graph integration but MAY omit it if it conflicts with their primary role (e.g., GitHub rendering).
 

@@ -3,6 +3,9 @@ tags:
   - symphony
   - operations
   - config
+type: operations
+status: active
+area: config
 created: 2026-03-16
 ---
 

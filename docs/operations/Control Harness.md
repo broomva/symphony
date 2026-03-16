@@ -4,6 +4,9 @@ tags:
   - operations
   - control
   - testing
+type: operations
+status: active
+area: quality
 created: 2026-03-16
 ---
 
