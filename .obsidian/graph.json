@@ -1,0 +1,55 @@
+{
+  "collapse-filter": false,
+  "search": "",
+  "showTags": true,
+  "showAttachments": false,
+  "hideUnresolved": false,
+  "showOrphans": true,
+  "collapse-color-groups": false,
+  "colorGroups": [
+    {
+      "query": "tag:#crate",
+      "color": { "a": 1, "rgb": 43775 }
+    },
+    {
+      "query": "tag:#architecture",
+      "color": { "a": 1, "rgb": 5431424 }
+    },
+    {
+      "query": "tag:#roadmap",
+      "color": { "a": 1, "rgb": 16753920 }
+    },
+    {
+      "query": "tag:#planning",
+      "color": { "a": 1, "rgb": 16776960 }
+    },
+    {
+      "query": "tag:#control OR tag:#quality",
+      "color": { "a": 1, "rgb": 16711680 }
+    },
+    {
+      "query": "tag:#spec",
+      "color": { "a": 1, "rgb": 10066329 }
+    },
+    {
+      "query": "tag:#meta",
+      "color": { "a": 1, "rgb": 8421504 }
+    },
+    {
+      "query": "tag:#decision",
+      "color": { "a": 1, "rgb": 16738740 }
+    }
+  ],
+  "collapse-display": false,
+  "showArrow": true,
+  "textFadeMultiplier": 0,
+  "nodeSizeMultiplier": 1,
+  "lineSizeMultiplier": 1,
+  "collapse-forces": false,
+  "centerStrength": 0.518713248970312,
+  "repelStrength": 10,
+  "linkStrength": 1,
+  "linkDistance": 250,
+  "scale": 0.9441776987830522,
+  "close": false
+}

@@ -4,3 +4,10 @@
 .DS_Store
 .env
 *.log
+
+# Obsidian vault — keep config, ignore dynamic state
+.obsidian/workspace.json
+.obsidian/plugins/
+.obsidian/themes/
+.obsidian/hotkeys.json
+.obsidian/core-plugins-migration.json

@@ -1,0 +1,71 @@
+filters:
+  and:
+    - file.hasTag("symphony")
+    - 'file.ext == "md"'
+
+formulas:
+  has_type: 'if(type, "Yes", "No")'
+  links_out: 'file.links.length'
+  links_in: 'file.backlinks.length'
+  connectivity: 'if(file.links.length > 0 && file.backlinks.length > 0, "Connected", if(file.links.length == 0 && file.backlinks.length == 0, "Orphan", if(file.links.length == 0, "Dead End", "Hub")))'
+  location: 'file.folder'
+
+properties:
+  file.name:
+    displayName: "Note"
+  type:
+    displayName: "Type"
+  status:
+    displayName: "Status"
+  formula.connectivity:
+    displayName: "Graph Status"
+  formula.links_out:
+    displayName: "Links Out"
+  formula.links_in:
+    displayName: "Links In"
+  formula.location:
+    displayName: "Folder"
+
+views:
+  - type: table
+    name: "All Vault Notes"
+    order:
+      - file.name
+      - type
+      - status
+      - formula.connectivity
+      - formula.links_out
+      - formula.links_in
+      - formula.location
+    groupBy:
+      property: formula.connectivity
+      direction: ASC
+    summaries:
+      formula.links_out: Sum
+      formula.links_in: Sum
+
+  - type: table
+    name: "By Type"
+    order:
+      - file.name
+      - type
+      - area
+      - status
+    groupBy:
+      property: type
+      direction: ASC
+
+  - type: table
+    name: "Needs Attention"
+    filters:
+      or:
+        - 'file.links.length == 0'
+        - 'file.backlinks.length == 0'
+        - 'status == "stale"'
+        - 'status == "draft"'
+    order:
+      - file.name
+      - formula.connectivity
+      - status
+      - formula.links_out
+      - formula.links_in

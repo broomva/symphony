@@ -1,0 +1,49 @@
+filters:
+  or:
+    - 'type == "architecture"'
+    - 'type == "decision"'
+    - 'type == "spec"'
+
+formulas:
+  link_count: 'file.links.length'
+  backlink_count: 'file.backlinks.length'
+  last_modified: 'file.mtime.format("YYYY-MM-DD")'
+
+properties:
+  file.name:
+    displayName: "Note"
+  type:
+    displayName: "Type"
+  area:
+    displayName: "Domain"
+  formula.link_count:
+    displayName: "Links Out"
+  formula.backlink_count:
+    displayName: "Links In"
+  formula.last_modified:
+    displayName: "Modified"
+
+views:
+  - type: table
+    name: "Architecture & Design"
+    order:
+      - file.name
+      - type
+      - area
+      - formula.link_count
+      - formula.backlink_count
+      - formula.last_modified
+    groupBy:
+      property: type
+      direction: ASC
+
+  - type: table
+    name: "Decisions (ADRs)"
+    filters:
+      and:
+        - 'type == "decision"'
+    order:
+      - file.name
+      - area
+      - status
+      - created

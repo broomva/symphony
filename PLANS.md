@@ -1,6 +1,21 @@
+---
+tags:
+  - symphony
+  - roadmap
+  - planning
+type: roadmap
+status: active
+area: project
+aliases:
+  - Plans
+  - Implementation Roadmap
+created: 2026-03-06
+---
+
 # PLANS.md - Symphony Implementation Roadmap
 
-Each task references spec sections. Acceptance criteria are testable assertions.
+Each task references [[SPEC]] sections. Acceptance criteria are testable assertions verified by [[CONTROL]] setpoints. See [[.planning/ROADMAP|Roadmap Graph]] for the phase dependency diagram and [[docs/roadmap/Project Status|Project Status]] for current completion state.
+
 Phases are ordered by dependency: each phase only depends on prior phases.
 
 ---
@@ -489,6 +504,110 @@ Phases are ordered by dependency: each phase only depends on prior phases.
 - Skipped = reported as skipped, not silently passed
 - AC: Real API call succeeds with valid credentials
 - AC: Test skipped cleanly when credentials absent
+
+---
+
+## Phase 8: Open Source Release Preparation
+**Depends on**: Phase 7
+**Gate**: Repository passes community-readiness checklist
+
+### Tasks
+
+**8.1 — License and Attribution**
+- Change license from MIT to Apache 2.0 (matches upstream OpenAI Symphony spec)
+- Add NOTICE file with attribution to OpenAI Symphony spec (Apache 2.0)
+- Add license headers to source files
+- AC: LICENSE file is Apache 2.0
+- AC: NOTICE file references OpenAI Symphony spec
+
+**8.2 — CI/CD Pipeline**
+- GitHub Actions: `make smoke` on every PR
+- Release workflow: build binaries for Linux (x86_64, aarch64), macOS (x86_64, aarch64), Windows (x86_64)
+- Publish to crates.io
+- Docker image published to ghcr.io
+- AC: CI runs on PR, release creates binaries
+
+**8.3 — Docker Support**
+- Multi-stage Dockerfile (builder + runtime)
+- `docker-compose.yml` with Symphony + example workflow
+- AC: `docker build .` produces working image
+- AC: `docker compose up` runs Symphony with example config
+
+**8.4 — Example Workflows**
+- `examples/linear-claude.md` — Linear + Claude Code (current default)
+- `examples/linear-codex.md` — Linear + OpenAI Codex
+- `examples/github-claude.md` — GitHub Issues + Claude Code (placeholder for future tracker)
+- AC: Each example is a valid WORKFLOW.md with inline comments
+
+**8.5 — Contributing Guide**
+- CONTRIBUTING.md: how to add tracker plugins, agent runners, build/test/lint
+- CODE_OF_CONDUCT.md
+- Issue templates: bug report, feature request, tracker plugin
+- AC: New contributor can build and test within 5 minutes
+
+**8.6 — Plugin Architecture Documentation**
+- Document how to add a new tracker (trait implementation)
+- Document how to add a new agent runner
+- Document the WORKFLOW.md format extension points
+- AC: EXTENDING.md covers tracker + agent runner plugin guide
+
+---
+
+## Phase 9: Symphony Cloud (Managed Service)
+**Depends on**: Phase 8
+**Gate**: MVP dashboard deployed with single-tenant orchestration
+
+### Tasks
+
+**9.1 — Scaffold symphony-cloud repo (next-forge)**
+- Initialize next-forge monorepo: apps/web, apps/app, apps/api
+- Strip unused packages (CMS, Storybook initially)
+- Configure Turborepo pipeline
+- AC: `bun dev` starts all apps locally
+
+**9.2 — Symphony Client SDK**
+- TypeScript client for Symphony's HTTP API (`/api/v1/state`, `/api/v1/refresh`, etc.)
+- Auto-generated types from Symphony's JSON schema
+- Published as `@symphony/client` package in monorepo
+- AC: Client can fetch state, trigger refresh, query individual issues
+
+**9.3 — Dashboard MVP (apps/app)**
+- Real-time view of running/retrying agents
+- Issue detail with logs, token usage, retry history
+- Workflow editor (WORKFLOW.md visual editor)
+- Connects to Symphony API via client SDK
+- AC: Dashboard shows live agent status from running Symphony instance
+
+**9.4 — Control Plane API (apps/api)**
+- Tenant provisioning: create/manage Symphony instances
+- Workflow CRUD: store and deploy WORKFLOW.md configs
+- API key management for Linear/GitHub tokens (encrypted at rest)
+- AC: API can create a tenant and start a Symphony instance
+
+**9.5 — Auth and Multi-tenancy**
+- Clerk integration for user/team authentication
+- Tenant isolation: each tenant gets own Symphony instance + workspace root
+- Role-based access: admin, member, viewer
+- AC: Two tenants cannot see each other's data
+
+**9.6 — Billing and Usage Metering**
+- Stripe integration for subscriptions
+- Usage metering: agent-hours, token consumption, concurrent slots
+- Tier enforcement: limit concurrent agents per plan
+- AC: Free tier limited to 1 agent; paid tier scales
+
+**9.7 — Infrastructure and Deployment**
+- Per-tenant Symphony binary orchestration (containers or processes)
+- Auto-scaling: spin up/down based on active issues
+- Health monitoring and auto-restart
+- AC: Tenant's Symphony instance recovers from crash within 60s
+
+**9.8 — Desktop App (Tauri, optional)**
+- Tauri v2 wrapper around dashboard React components from packages/ui
+- Connects to cloud API or local Symphony instance
+- Auto-updater for new versions
+- Distribute: DMG (macOS), MSI (Windows), AppImage (Linux)
+- AC: Desktop app shows same dashboard as web
 
 ---
 

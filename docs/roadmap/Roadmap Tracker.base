@@ -1,0 +1,43 @@
+filters:
+  or:
+    - 'type == "roadmap"'
+    - 'type == "planning"'
+
+formulas:
+  last_updated: 'file.mtime.format("YYYY-MM-DD HH:mm")'
+
+properties:
+  file.name:
+    displayName: "Document"
+  type:
+    displayName: "Type"
+  area:
+    displayName: "Domain"
+  status:
+    displayName: "Status"
+  formula.last_updated:
+    displayName: "Last Updated"
+
+views:
+  - type: table
+    name: "Planning & Roadmap"
+    order:
+      - file.name
+      - type
+      - area
+      - status
+      - formula.last_updated
+    groupBy:
+      property: type
+      direction: ASC
+
+  - type: table
+    name: "Active Only"
+    filters:
+      and:
+        - 'status == "active"'
+    order:
+      - file.name
+      - type
+      - area
+      - formula.last_updated

@@ -1,4 +1,18 @@
+---
+tags:
+  - symphony
+type: reference
+status: active
+area: project
+aliases:
+  - README
+created: 2026-03-06
+---
+
 # Symphony
+
+> A Rust implementation of the [Symphony](https://github.com/openai/symphony) orchestration spec by OpenAI.
+> For vault navigation see [[docs/Symphony Index|Symphony Index]]. For the canonical spec see [[SPEC]].
 
 A Rust-based orchestration service that polls an issue tracker (Linear), creates isolated per-issue workspaces, and runs coding agent sessions automatically.
 
@@ -238,6 +252,22 @@ make fmt      # cargo fmt --all
 
 136 tests across all crates (131 unit + 5 integration tests requiring `LINEAR_API_KEY`).
 
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+Key extension points:
+- **Tracker plugins**: Implement the `TrackerClient` trait to add support for GitHub Issues, Jira, etc.
+- **Agent runners**: The agent runner supports any CLI that speaks line-delimited JSON on stdout
+- **Workflow templates**: Create new `WORKFLOW.md` examples for different use cases
+
+## Community
+
+- [Issues](https://github.com/broomva/symphony/issues) — bug reports, feature requests
+- [Discussions](https://github.com/broomva/symphony/discussions) — questions, ideas, show & tell
+
 ## License
 
-MIT
+Apache License 2.0 — see [LICENSE](LICENSE) for details.
+
+This project implements the [Symphony specification](https://github.com/openai/symphony) originally published by OpenAI under the Apache 2.0 license.
