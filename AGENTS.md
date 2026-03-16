@@ -1,3 +1,13 @@
+---
+tags:
+  - symphony
+  - architecture
+  - meta
+aliases:
+  - Agents Guide
+created: 2026-03-06
+---
+
 # AGENTS.md - Symphony
 
 ## Repository Purpose

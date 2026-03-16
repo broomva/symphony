@@ -1,3 +1,12 @@
+---
+tags:
+  - symphony
+  - meta
+aliases:
+  - Claude Rules
+created: 2026-03-06
+---
+
 # CLAUDE.md - Symphony
 
 ## Project

@@ -1,0 +1,32 @@
+filters:
+  and:
+    - file.hasTag("architecture")
+    - 'file.ext == "md"'
+
+formulas:
+  note_type: 'if(file.inFolder("docs/crates"), "Crate Doc", if(file.inFolder("docs/architecture"), "Architecture", if(file.inFolder(".planning"), "Planning", "Root")))'
+  link_count: 'file.links.length'
+  backlink_count: 'file.backlinks.length'
+
+properties:
+  file.name:
+    displayName: "Note"
+  formula.note_type:
+    displayName: "Type"
+  formula.link_count:
+    displayName: "Links Out"
+  formula.backlink_count:
+    displayName: "Links In"
+
+views:
+  - type: table
+    name: "Architecture Notes"
+    order:
+      - file.name
+      - formula.note_type
+      - formula.link_count
+      - formula.backlink_count
+      - file.mtime
+    groupBy:
+      property: formula.note_type
+      direction: ASC

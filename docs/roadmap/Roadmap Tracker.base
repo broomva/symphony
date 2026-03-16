@@ -1,0 +1,29 @@
+filters:
+  or:
+    - file.hasTag("roadmap")
+    - file.hasTag("planning")
+    - file.hasTag("status")
+
+formulas:
+  category: 'if(file.hasTag("status"), "Status", if(file.hasTag("roadmap"), "Roadmap", "Planning"))'
+  last_updated: 'file.mtime.format("YYYY-MM-DD HH:mm")'
+
+properties:
+  file.name:
+    displayName: "Document"
+  formula.category:
+    displayName: "Category"
+  formula.last_updated:
+    displayName: "Last Updated"
+
+views:
+  - type: table
+    name: "Planning & Roadmap"
+    order:
+      - file.name
+      - formula.category
+      - formula.last_updated
+      - file.size
+    groupBy:
+      property: formula.category
+      direction: ASC

@@ -1,0 +1,27 @@
+filters:
+  and:
+    - file.hasTag("crate")
+    - file.inFolder("docs/crates")
+
+formulas:
+  spec_section: 'if(tags, tags.join(", "), "")'
+  last_modified: 'file.mtime.format("YYYY-MM-DD")'
+
+properties:
+  file.name:
+    displayName: "Crate"
+  formula.spec_section:
+    displayName: "Tags"
+  formula.last_modified:
+    displayName: "Last Modified"
+
+views:
+  - type: table
+    name: "All Crates"
+    order:
+      - file.name
+      - formula.spec_section
+      - formula.last_modified
+      - file.size
+    summaries:
+      file.size: Sum

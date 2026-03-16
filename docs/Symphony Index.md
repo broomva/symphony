@@ -51,6 +51,16 @@ A Rust-based orchestration service that polls an issue tracker, creates isolated
 - [[docs/crates/symphony-orchestrator|symphony-orchestrator]] — Dispatch and scheduling (S7-8)
 - [[docs/crates/symphony-observability|symphony-observability]] — HTTP API and logging (S13)
 
+### Vault Meta
+- [[docs/Vault Conventions|Vault Conventions]] — Tag taxonomy, frontmatter standard, linking patterns
+- ![[docs/Vault Health.base#All Vault Notes]]
+
+### Bases Dashboards
+- [[docs/Crates Dashboard.base|Crates Dashboard]] — All crate documentation in a table
+- [[docs/Architecture Map.base|Architecture Map]] — Architecture notes grouped by type
+- [[docs/Vault Health.base|Vault Health]] — Connectivity audit (orphans, dead ends, hubs)
+- [[docs/roadmap/Roadmap Tracker.base|Roadmap Tracker]] — Planning notes with timestamps
+
 ## Quick Stats (2026-03-16)
 
 | Metric | Value |

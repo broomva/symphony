@@ -1,4 +1,18 @@
+---
+tags:
+  - symphony
+  - control
+  - quality
+aliases:
+  - Control
+  - Control Metalayer
+created: 2026-03-06
+---
+
 # CONTROL.md - Symphony Control Metalayer
+
+> [!info] Operational companion
+> For build commands, test distribution, and deviation history see [[docs/operations/Control Harness|Control Harness]]. For the implementation roadmap these setpoints verify, see [[PLANS]].
 
 ## Setpoints (What MUST be true)
 
@@ -146,3 +160,14 @@ IF phase completed THEN:
 | 2026-03-06 | S2 | Clippy warnings on stub dead_code | Added `#[allow(dead_code)]` on stub structs (justified: fields used once impl complete) |
 | 2026-03-06 | S2 | Clippy: manual_strip, collapsible_if, needless_borrows, derivable_impls, manual_map | Auto-fixed via `cargo clippy --fix` |
 | 2026-03-06 | S10 | Rust 2024 edition: `set_var`/`remove_var` are unsafe | Wrapped in `unsafe` block in test (justified: single-threaded test context) |
+| 2026-03-16 | S2 | Unused import `PathBuf` in workspace tests | Removed redundant import (already via `use super::*`) |
+
+---
+
+## See Also
+
+- [[docs/operations/Control Harness|Control Harness]] — build gates, test distribution, audit commands
+- [[PLANS]] — implementation roadmap these setpoints verify
+- [[.planning/REQUIREMENTS|Requirements]] — spec conformance checklist
+- [[SPEC]] — canonical specification being verified
+- [[AGENTS]] — agent guidelines referencing these controls

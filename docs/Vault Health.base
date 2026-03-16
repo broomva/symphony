@@ -1,0 +1,53 @@
+filters:
+  and:
+    - file.hasTag("symphony")
+    - 'file.ext == "md"'
+
+formulas:
+  has_frontmatter: 'if(tags, "Yes", "No")'
+  links_out: 'file.links.length'
+  links_in: 'file.backlinks.length'
+  connectivity: 'if(file.links.length > 0 && file.backlinks.length > 0, "Connected", if(file.links.length == 0 && file.backlinks.length == 0, "Orphan", if(file.links.length == 0, "Dead End", "Hub")))'
+  location: 'file.folder'
+
+properties:
+  file.name:
+    displayName: "Note"
+  formula.has_frontmatter:
+    displayName: "Frontmatter"
+  formula.links_out:
+    displayName: "Links Out"
+  formula.links_in:
+    displayName: "Links In"
+  formula.connectivity:
+    displayName: "Status"
+  formula.location:
+    displayName: "Folder"
+
+views:
+  - type: table
+    name: "All Vault Notes"
+    order:
+      - file.name
+      - formula.location
+      - formula.connectivity
+      - formula.links_out
+      - formula.links_in
+    groupBy:
+      property: formula.connectivity
+      direction: ASC
+    summaries:
+      formula.links_out: Sum
+      formula.links_in: Sum
+
+  - type: table
+    name: "Disconnected Notes"
+    filters:
+      or:
+        - 'file.links.length == 0'
+        - 'file.backlinks.length == 0'
+    order:
+      - file.name
+      - formula.connectivity
+      - formula.links_out
+      - formula.links_in

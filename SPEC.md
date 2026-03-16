@@ -1,4 +1,19 @@
+---
+tags:
+  - symphony
+  - spec
+  - reference
+aliases:
+  - Spec
+  - Specification
+  - Symphony Spec
+created: 2026-03-06
+---
+
 # Symphony Service Specification
+
+> [!abstract] Implementation
+> This spec is implemented by the Symphony Rust codebase. See [[docs/architecture/Crate Map|Crate Map]] for which crate covers each section, [[.planning/REQUIREMENTS|Requirements]] for the conformance checklist, and [[PLANS]] for the phased implementation roadmap.
 
 Status: Draft v1 (language-agnostic)
 
