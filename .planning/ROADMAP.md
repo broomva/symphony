@@ -1,4 +1,17 @@
+---
+tags:
+  - symphony
+  - planning
+  - roadmap
+aliases:
+  - Roadmap Graph
+  - Phase Dependency Graph
+created: 2026-03-06
+---
+
 # ROADMAP.md - Symphony
+
+See [[PLANS]] for detailed task definitions. See [[docs/roadmap/Project Status|Project Status]] for current state.
 
 ## Phase Dependency Graph
 

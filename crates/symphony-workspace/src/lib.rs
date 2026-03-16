@@ -257,7 +257,6 @@ async fn run_hook_with_env(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
     // ── Sanitization tests (S4.2, S9.5 Invariant 3) ──
 

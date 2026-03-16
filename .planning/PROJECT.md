@@ -1,3 +1,12 @@
+---
+tags:
+  - symphony
+  - planning
+aliases:
+  - Project Vision
+created: 2026-03-06
+---
+
 # PROJECT.md - Symphony
 
 ## Vision
@@ -7,9 +16,10 @@ by polling Linear for issues, creating isolated workspaces, and running
 Codex app-server sessions.
 
 ## Source of Truth
-- Canonical spec: `/Users/broomva/Downloads/Symphony SPEC.md` (Draft v1)
-- Architecture: `AGENTS.md`
-- Roadmap: `PLANS.md`
+- Canonical spec: [[SPEC]] (Draft v1)
+- Architecture: [[AGENTS]]
+- Roadmap: [[PLANS]]
+- Vault index: [[docs/Symphony Index|Symphony Index]]
 
 ## Tech Stack
 - **Language**: Rust (edition 2024)

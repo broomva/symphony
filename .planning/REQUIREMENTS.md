@@ -1,6 +1,17 @@
+---
+tags:
+  - symphony
+  - planning
+  - conformance
+aliases:
+  - Requirements
+  - Spec Conformance
+created: 2026-03-06
+---
+
 # REQUIREMENTS.md - Symphony Spec Conformance Checklist
 
-Status: `[ ]` = not started, `[~]` = in progress, `[x]` = done + tested
+Tracks conformance to [[SPEC]]. Status: `[ ]` = not started, `[~]` = in progress, `[x]` = done + tested
 
 ## Core Conformance (Spec Section 18.1)
 
