@@ -163,6 +163,33 @@ impl LinearClient {
     }
 }
 
+/// GraphQL query for fetching workflow states for an issue's team.
+const WORKFLOW_STATES_QUERY: &str = r#"
+query WorkflowStatesForIssue($issueId: String!) {
+  issues(filter: { id: { eq: $issueId } }, first: 1) {
+    nodes {
+      team {
+        states {
+          nodes {
+            id
+            name
+          }
+        }
+      }
+    }
+  }
+}
+"#;
+
+/// GraphQL mutation to update an issue's state.
+const ISSUE_UPDATE_STATE_MUTATION: &str = r#"
+mutation IssueUpdateState($issueId: String!, $stateId: String!) {
+  issueUpdate(id: $issueId, input: { stateId: $stateId }) {
+    success
+  }
+}
+"#;
+
 /// GraphQL query for fetching candidate issues (S11.2).
 const CANDIDATE_ISSUES_QUERY: &str = r#"
 query CandidateIssues($projectSlug: String!, $first: Int!, $after: String) {
@@ -332,6 +359,68 @@ impl TrackerClient for LinearClient {
             }
         }
         Ok(issues)
+    }
+
+    async fn set_issue_state(&self, issue_id: &str, state: &str) -> Result<(), TrackerError> {
+        // Step 1: Query the team's workflow states for this issue
+        let variables = serde_json::json!({ "issueId": issue_id });
+        let data = self.graphql_query(WORKFLOW_STATES_QUERY, variables).await?;
+
+        let state_nodes = data
+            .get("issues")
+            .and_then(|i| i.get("nodes"))
+            .and_then(|n| n.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|issue| issue.get("team"))
+            .and_then(|team| team.get("states"))
+            .and_then(|states| states.get("nodes"))
+            .and_then(|n| n.as_array());
+
+        let Some(state_nodes) = state_nodes else {
+            tracing::warn!(
+                issue_id = %issue_id,
+                target_state = %state,
+                "could not fetch workflow states for issue, skipping done_state transition"
+            );
+            return Ok(());
+        };
+
+        // Step 2: Find the state ID matching the target state name (case-insensitive)
+        let target_lower = state.trim().to_lowercase();
+        let state_id = state_nodes.iter().find_map(|node| {
+            let name = node.get("name")?.as_str()?;
+            if name.trim().to_lowercase() == target_lower {
+                node.get("id")?.as_str().map(String::from)
+            } else {
+                None
+            }
+        });
+
+        let Some(state_id) = state_id else {
+            tracing::warn!(
+                issue_id = %issue_id,
+                target_state = %state,
+                "workflow state not found for issue's team, skipping done_state transition"
+            );
+            return Ok(());
+        };
+
+        // Step 3: Mutate the issue to the target state
+        let variables = serde_json::json!({
+            "issueId": issue_id,
+            "stateId": state_id,
+        });
+        self.graphql_query(ISSUE_UPDATE_STATE_MUTATION, variables)
+            .await?;
+
+        tracing::info!(
+            issue_id = %issue_id,
+            target_state = %state,
+            state_id = %state_id,
+            "transitioned issue to done_state"
+        );
+
+        Ok(())
     }
 }
 
@@ -623,6 +712,26 @@ mod tests {
         assert_eq!(issue.state, "Todo");
         assert_eq!(issue.priority, Some(1));
         assert!(issue.created_at.is_some());
+    }
+
+    #[test]
+    fn workflow_states_query_shape() {
+        assert!(WORKFLOW_STATES_QUERY.contains("WorkflowStatesForIssue"));
+        assert!(WORKFLOW_STATES_QUERY.contains("$issueId"));
+        assert!(WORKFLOW_STATES_QUERY.contains("team"));
+        assert!(WORKFLOW_STATES_QUERY.contains("states"));
+        assert!(WORKFLOW_STATES_QUERY.contains("nodes"));
+        assert!(WORKFLOW_STATES_QUERY.contains("id"));
+        assert!(WORKFLOW_STATES_QUERY.contains("name"));
+    }
+
+    #[test]
+    fn issue_update_mutation_shape() {
+        assert!(ISSUE_UPDATE_STATE_MUTATION.contains("issueUpdate"));
+        assert!(ISSUE_UPDATE_STATE_MUTATION.contains("$issueId"));
+        assert!(ISSUE_UPDATE_STATE_MUTATION.contains("$stateId"));
+        assert!(ISSUE_UPDATE_STATE_MUTATION.contains("stateId"));
+        assert!(ISSUE_UPDATE_STATE_MUTATION.contains("success"));
     }
 
     #[test]

@@ -9,6 +9,7 @@
 pub mod client;
 pub mod config_cmd;
 pub mod control;
+pub mod init;
 pub mod issues;
 pub mod logs;
 pub mod output;
@@ -77,6 +78,8 @@ pub enum Command {
     Run(RunArgs),
     /// Tail daemon log file.
     Logs(LogsArgs),
+    /// Initialize a WORKFLOW.md in the current directory.
+    Init(InitArgs),
 }
 
 #[derive(clap::Args, Debug)]
@@ -182,6 +185,21 @@ pub struct LogsArgs {
     pub path: String,
 }
 
+#[derive(clap::Args, Debug)]
+pub struct InitArgs {
+    /// Tracker kind (linear or github).
+    #[arg(long, default_value = "linear")]
+    pub tracker: String,
+
+    /// Output path for the WORKFLOW.md file.
+    #[arg(long, default_value = "WORKFLOW.md")]
+    pub output: PathBuf,
+
+    /// Overwrite existing file without asking.
+    #[arg(long)]
+    pub force: bool,
+}
+
 /// Connection options for client commands.
 pub struct ConnOpts {
     pub host: Option<String>,
@@ -227,6 +245,7 @@ const SUBCOMMANDS: &[&str] = &[
     "test",
     "run",
     "logs",
+    "init",
     "help",
 ];
 

@@ -442,6 +442,7 @@ impl Scheduler {
         let workspace_mgr = Arc::clone(&self.workspace_mgr);
         let prompt_template = Arc::clone(&self.prompt_template);
         let obs_state = Arc::clone(&self.obs_state);
+        let tracker = Arc::clone(&self.tracker);
         let config = config.clone();
         let handle_id = issue_id.clone();
 
@@ -464,6 +465,26 @@ impl Scheduler {
                     identifier = %identifier,
                     "worker completed normally"
                 );
+
+                // Transition issue to done_state on normal exit (S69)
+                if let Some(ref done_state) = config.tracker.done_state {
+                    tracing::info!(
+                        issue_id = %issue_id,
+                        identifier = %identifier,
+                        done_state = %done_state,
+                        "transitioning issue to done_state"
+                    );
+                    if let Err(e) = tracker.set_issue_state(&issue_id, done_state).await {
+                        // S70: failure is logged but does not block retry scheduling
+                        tracing::warn!(
+                            issue_id = %issue_id,
+                            identifier = %identifier,
+                            done_state = %done_state,
+                            error = %e,
+                            "done_state transition failed, continuing with retry scheduling"
+                        );
+                    }
+                }
             }
 
             handle_worker_exit(&state, &issue_id, normal_exit, &config).await;
@@ -837,5 +858,45 @@ mod tests {
 
         let selected = select_candidates_from(&mut issues, &state, &config);
         assert_eq!(selected.len(), 2);
+    }
+
+    #[test]
+    fn done_state_config_is_threaded_through() {
+        let mut config = make_config();
+        // Verify done_state is None by default
+        assert!(config.tracker.done_state.is_none());
+
+        // Set done_state and verify it's accessible
+        config.tracker.done_state = Some("Done".into());
+        assert_eq!(config.tracker.done_state, Some("Done".into()));
+    }
+
+    #[test]
+    fn done_state_parsed_from_workflow() {
+        let content = r#"---
+tracker:
+  kind: linear
+  api_key: test-key
+  project_slug: test-proj
+  done_state: Done
+---
+Prompt body"#;
+        let def = symphony_config::loader::parse_workflow(content).unwrap();
+        let config = symphony_config::loader::extract_config(&def);
+        assert_eq!(config.tracker.done_state, Some("Done".into()));
+    }
+
+    #[test]
+    fn done_state_absent_from_workflow_is_none() {
+        let content = r#"---
+tracker:
+  kind: linear
+  api_key: test-key
+  project_slug: test-proj
+---
+Prompt body"#;
+        let def = symphony_config::loader::parse_workflow(content).unwrap();
+        let config = symphony_config::loader::extract_config(&def);
+        assert!(config.tracker.done_state.is_none());
     }
 }

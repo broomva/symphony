@@ -87,4 +87,8 @@ pub trait TrackerClient: Send + Sync {
         &self,
         issue_ids: &[String],
     ) -> Result<Vec<Issue>, TrackerError>;
+
+    /// Transition an issue to a new state. Used for done_state transitions.
+    /// Returns Ok(()) on success, or TrackerError on failure.
+    async fn set_issue_state(&self, issue_id: &str, state: &str) -> Result<(), TrackerError>;
 }

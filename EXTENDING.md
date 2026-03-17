@@ -81,17 +81,37 @@ pub struct Issue {
 }
 ```
 
-4. **Wire it up** in `src/cli/start.rs` — add a match arm for your tracker kind:
+4. **Register in the factory** in `crates/symphony-tracker/src/lib.rs`:
 
 ```rust
-let tracker: Arc<dyn TrackerClient> = match config.tracker.kind.as_str() {
-    "linear" => Arc::new(LinearClient::new(/* ... */)),
-    "github" => Arc::new(GitHubClient::new(/* ... */)),
-    _ => anyhow::bail!("unsupported tracker: {}", config.tracker.kind),
-};
+// The create_tracker() factory dispatches on config.kind:
+pub fn create_tracker(config: &TrackerConfig) -> Result<Box<dyn TrackerClient>, TrackerError> {
+    match config.kind.as_str() {
+        "linear" => Ok(Box::new(LinearClient::new(/* ... */))),
+        "github" => Ok(Box::new(GithubClient::from_slug(/* ... */))),
+        other => Err(TrackerError::UnsupportedKind(other.into())),
+    }
+}
 ```
 
-5. **Add tests** following the pattern in `crates/symphony-tracker/src/linear/tests.rs`
+5. **Add tests** following the pattern in existing tracker modules
+
+### Built-in Trackers
+
+#### Linear (`tracker.kind: linear`)
+- Uses GraphQL API at `https://api.linear.app/graphql`
+- `project_slug`: Linear project slug ID (from project URL)
+- Auth: `api_key` set as Authorization header directly
+- States: Maps Linear workflow state names directly
+
+#### GitHub Issues (`tracker.kind: github`)
+- Uses REST API at `https://api.github.com`
+- `project_slug`: `owner/repo` format (e.g., `broomva/symphony`)
+- Auth: Bearer token via `api_key` (use `$GITHUB_TOKEN`)
+- States: `open`/`closed` + label-based mapping
+  - If an issue has a label matching an `active_states` entry, that label is used as the state
+  - Otherwise, GitHub's native `open`/`closed` is used
+- Pull requests are automatically filtered out (GitHub's issues API includes PRs)
 
 ### Key Requirements
 
@@ -113,6 +133,15 @@ tracker:
     - open
   terminal_states:
     - closed
+  done_state: closed        # (optional) Transition issues to this state on agent success
+
+hooks:
+  after_create: "..."       # Runs on workspace creation (fatal on failure)
+  before_run: "..."         # Runs before each agent turn (fatal on failure)
+  after_run: "..."          # Runs after each turn (failure ignored)
+  before_remove: "..."      # Runs before workspace cleanup (failure ignored)
+  pr_feedback: "..."        # Captures stdout as PR review feedback for next turn
+  timeout_ms: 60000         # Hook execution timeout
 ```
 
 ## Adding a New Agent Runner

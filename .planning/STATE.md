@@ -32,7 +32,7 @@ created: 2026-03-06
 - Extension: S17.8 — Real Linear integration tests (5 #[ignore] tests, skipped when LINEAR_API_KEY absent)
 
 ## Metrics
-- Tests: 185 passing + 5 ignored (opt-in real integration)
+- Tests: 200 passing + 5 ignored (opt-in real integration)
 - Crates: 8 (7 library + 1 binary)
 - Gate: SMOKE PASS + RELEASE BUILD
 - All `make smoke`, `make check`, `make test`, `make build` passing

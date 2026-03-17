@@ -86,6 +86,64 @@ impl GithubClient {
         format!("{}/{}#{}", self.repo_owner, self.repo_name, number)
     }
 
+    /// Execute a PATCH request against the GitHub API.
+    async fn patch(
+        &self,
+        url: &str,
+        body: &serde_json::Value,
+    ) -> Result<reqwest::Response, TrackerError> {
+        let response = self
+            .http
+            .patch(url)
+            .header("Authorization", format!("Bearer {}", self.api_token))
+            .header("Accept", "application/vnd.github+json")
+            .header("X-GitHub-Api-Version", "2022-11-28")
+            .json(body)
+            .send()
+            .await
+            .map_err(|e| TrackerError::GithubApiRequest(e.to_string()))?;
+
+        let status = response.status().as_u16();
+        if !(200..300).contains(&status) {
+            let body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<unreadable>".into());
+            return Err(TrackerError::GithubApiStatus { status, body });
+        }
+
+        Ok(response)
+    }
+
+    /// Execute a POST request against the GitHub API.
+    async fn post(
+        &self,
+        url: &str,
+        body: &serde_json::Value,
+    ) -> Result<reqwest::Response, TrackerError> {
+        let response = self
+            .http
+            .post(url)
+            .header("Authorization", format!("Bearer {}", self.api_token))
+            .header("Accept", "application/vnd.github+json")
+            .header("X-GitHub-Api-Version", "2022-11-28")
+            .json(body)
+            .send()
+            .await
+            .map_err(|e| TrackerError::GithubApiRequest(e.to_string()))?;
+
+        let status = response.status().as_u16();
+        if !(200..300).contains(&status) {
+            let body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<unreadable>".into());
+            return Err(TrackerError::GithubApiStatus { status, body });
+        }
+
+        Ok(response)
+    }
+
     /// Execute a GET request against the GitHub API.
     async fn get(&self, url: &str) -> Result<reqwest::Response, TrackerError> {
         let response = self
@@ -348,6 +406,55 @@ impl TrackerClient for GithubClient {
 
         Ok(issues)
     }
+
+    async fn set_issue_state(&self, issue_id: &str, state: &str) -> Result<(), TrackerError> {
+        let Some(number) = extract_issue_number(issue_id) else {
+            tracing::warn!(
+                issue_id = %issue_id,
+                target_state = %state,
+                "cannot extract issue number, skipping done_state transition"
+            );
+            return Ok(());
+        };
+
+        let url = format!(
+            "{}/repos/{}/{}/issues/{}",
+            self.api_base, self.repo_owner, self.repo_name, number
+        );
+
+        let state_lower = state.trim().to_lowercase();
+
+        if state_lower == "closed" {
+            // Simple close
+            let body = serde_json::json!({ "state": "closed" });
+            self.patch(&url, &body).await?;
+            tracing::info!(
+                issue_id = %issue_id,
+                number = number,
+                "closed GitHub issue for done_state transition"
+            );
+        } else {
+            // Close the issue AND add the state as a label
+            let body = serde_json::json!({ "state": "closed" });
+            self.patch(&url, &body).await?;
+
+            let label_url = format!(
+                "{}/repos/{}/{}/issues/{}/labels",
+                self.api_base, self.repo_owner, self.repo_name, number
+            );
+            let label_body = serde_json::json!({ "labels": [state] });
+            self.post(&label_url, &label_body).await?;
+
+            tracing::info!(
+                issue_id = %issue_id,
+                number = number,
+                target_state = %state,
+                "closed GitHub issue and added state label for done_state transition"
+            );
+        }
+
+        Ok(())
+    }
 }
 
 /// Extract the issue number from an identifier.
@@ -568,5 +675,13 @@ mod tests {
         let client = make_client();
         let result = client.fetch_issues_by_states(&[]).await.unwrap();
         assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn set_issue_state_invalid_identifier_returns_ok() {
+        let client = make_client();
+        // Invalid identifier (no number) should return Ok, not panic
+        let result = client.set_issue_state("invalid-no-number", "closed").await;
+        assert!(result.is_ok());
     }
 }

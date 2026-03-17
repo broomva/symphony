@@ -135,6 +135,12 @@ created: 2026-03-06
 | S67 | Label-based state mapping for active states | Unit test: state_from_labels_matches_active | — |
 | S68 | `create_tracker()` factory dispatches on kind | Code: start.rs + run.rs use factory | S11.1 |
 
+### Done State Transition (S69-S70)
+| ID | Setpoint | Measurement | Spec |
+|----|----------|-------------|------|
+| S69 | `done_state` transition called on normal worker exit | Code: dispatch_and_run calls set_issue_state after normal exit | S8.4 ext |
+| S70 | `set_issue_state` failure is logged but doesn't block retry scheduling | Code: error logged with warn, handle_worker_exit still called | S8.4 ext |
+
 ---
 
 ## Sensors (How we measure)

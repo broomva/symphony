@@ -82,6 +82,10 @@ async fn run_command(
             cli::run::run_run(args).await
         }
         Command::Logs(args) => cli::logs::run_logs(&args).await,
+        Command::Init(args) => {
+            cli::init::run_init(&args)?;
+            Ok(())
+        }
     }
 }
 
@@ -172,5 +176,19 @@ mod tests {
     fn cli_check_subcommand() {
         let cli = Cli::parse_from(["symphony", "check"]);
         assert!(matches!(cli.command, Some(Command::Check)));
+    }
+
+    #[test]
+    fn cli_init_subcommand() {
+        let cli = Cli::parse_from(["symphony", "init"]);
+        assert!(matches!(cli.command, Some(Command::Init(_))));
+    }
+
+    #[test]
+    fn cli_init_with_tracker() {
+        let cli = Cli::parse_from(["symphony", "init", "--tracker", "github"]);
+        if let Some(Command::Init(args)) = cli.command {
+            assert_eq!(args.tracker, "github");
+        }
     }
 }
