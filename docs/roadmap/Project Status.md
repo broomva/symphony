@@ -18,7 +18,7 @@ Last updated: 2026-03-17
 | Metric | Value |
 |--------|-------|
 | **Phase** | Core complete (0-8), Cloud in parallel (9) |
-| **Tests** | 200 passing + 5 opt-in integration |
+| **Tests** | 222 passing + 5 opt-in integration |
 | **Warnings** | 0 (clippy clean) |
 | **Gate** | `make smoke` PASS |
 | **Spec conformance** | 100% core + extensions |

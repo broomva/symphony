@@ -37,11 +37,26 @@ When in doubt about behavior, consult the canonical spec: `/Users/broomva/Downlo
 ## Commands
 - `make smoke` — compile + clippy + test (the gate, runs pre-commit)
 - `make check` — cargo check + clippy
-- `make test` — cargo test --workspace
+- `make test` — cargo test --workspace (includes CLI integration tests)
 - `make build` — cargo build --release
 - `make control-audit` — smoke + format check (before PR)
 - `make fmt` — auto-format code
 - `make install` — install binary locally
+
+## CLI Testing
+
+Integration tests in `tests/cli_integration.rs` verify the binary end-to-end:
+- `symphony init` scaffolds WORKFLOW.md correctly for both tracker types
+- `symphony validate` catches missing keys, invalid config
+- `symphony config` displays resolved settings (including pr_feedback, done_state)
+- Init → Validate round-trip: generated workflows pass validation
+- Remote daemon access: auth rejection works properly
+- Error paths: missing files, unsupported trackers, overwrite protection
+
+When adding new CLI subcommands or config options:
+1. Add arg parsing test in `src/cli/mod.rs`
+2. Add binary integration test in `tests/cli_integration.rs`
+3. Verify with `cargo test --test cli_integration`
 
 ## Control Loop (Pre-Commit Enforcement)
 

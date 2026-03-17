@@ -151,6 +151,16 @@ This control metalayer drives the development feedback loop:
 | S67 | Label-based state mapping for active states | Unit test: state_from_labels_matches_active | — |
 | S68 | `create_tracker()` factory dispatches on kind | Code: start.rs + run.rs use factory | S11.1 |
 
+### CLI Integration (S71-S76)
+| ID | Setpoint | Measurement | Spec |
+|----|----------|-------------|------|
+| S71 | `symphony init` generates valid WORKFLOW.md for both tracker types | Integration test: init_then_validate_roundtrip | — |
+| S72 | `symphony init` refuses overwrite without `--force` | Integration test: init_refuses_overwrite | — |
+| S73 | `symphony validate` catches missing API key | Integration test: validate_missing_api_key | S6.3 |
+| S74 | `symphony config` displays pr_feedback hook | Integration test: config_shows_resolved | — |
+| S75 | Remote daemon access without token fails gracefully | Integration test: remote_without_token_fails | — |
+| S76 | `symphony run` with missing workflow fails cleanly | Integration test: run_missing_workflow_fails | — |
+
 ### Done State Transition (S69-S70)
 | ID | Setpoint | Measurement | Spec |
 |----|----------|-------------|------|

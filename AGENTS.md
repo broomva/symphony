@@ -70,11 +70,15 @@ Examples:         examples/linear-claude.md, linear-codex.md, github-claude.md
 ```bash
 make smoke          # Compile + clippy + test (gate — runs in pre-commit hook)
 make check          # Compile + clippy only
-make test           # Run all workspace tests
+make test           # Run all workspace tests (includes CLI integration tests)
 make build          # Release build
 make control-audit  # Smoke + format check (before PR)
 make fmt            # Auto-format code
 make install        # Install binary locally
+
+# CLI-specific testing
+cargo test --test cli_integration          # Run CLI binary integration tests only
+cargo test --test cli_integration -- init  # Run only init-related CLI tests
 ```
 
 ## Control Harness
