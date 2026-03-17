@@ -507,49 +507,56 @@ Phases are ordered by dependency: each phase only depends on prior phases.
 
 ---
 
-## Phase 8: Open Source Release Preparation
+## Phase 8: Open Source Release Preparation [MOSTLY DONE]
 **Depends on**: Phase 7
 **Gate**: Repository passes community-readiness checklist
 
 ### Tasks
 
-**8.1 — License and Attribution**
-- Change license from MIT to Apache 2.0 (matches upstream OpenAI Symphony spec)
-- Add NOTICE file with attribution to OpenAI Symphony spec (Apache 2.0)
-- Add license headers to source files
-- AC: LICENSE file is Apache 2.0
-- AC: NOTICE file references OpenAI Symphony spec
+**8.1 — License and Attribution [DONE]**
+- [x] License changed to Apache 2.0
+- [x] NOTICE file with OpenAI Symphony spec attribution
+- [ ] License headers in source files (deferred)
 
-**8.2 — CI/CD Pipeline**
-- GitHub Actions: `make smoke` on every PR
-- Release workflow: build binaries for Linux (x86_64, aarch64), macOS (x86_64, aarch64), Windows (x86_64)
-- Publish to crates.io
-- Docker image published to ghcr.io
-- AC: CI runs on PR, release creates binaries
+**8.2 — CI/CD Pipeline [DONE]**
+- [x] GitHub Actions CI: check + clippy + fmt + test on PR/push
+- [x] Release workflow (`.github/workflows/release.yml`): triggered on `v*` tags
+  - Multi-platform binaries (Linux amd64, macOS amd64/arm64)
+  - GitHub Release with artifacts
+  - Publish all 8 crates to crates.io in dependency order
+  - Docker image to ghcr.io
+- [x] Published to crates.io as `symphony-cli` (binary) + 7 library crates
+  - Install: `cargo install symphony-cli`
 
-**8.3 — Docker Support**
-- Multi-stage Dockerfile (builder + runtime)
-- `docker-compose.yml` with Symphony + example workflow
-- AC: `docker build .` produces working image
-- AC: `docker compose up` runs Symphony with example config
+**8.3 — Docker Support [DONE]**
+- [x] Multi-stage Dockerfile (Rust builder + Debian runtime)
+- [x] Non-root `symphony` user (Claude Code requires non-root)
+- [x] Includes: git, gh CLI, Node.js, Claude Code CLI
+- [x] `start.sh` managed-mode startup (fetches WORKFLOW.md from control plane)
+- [x] `docker-compose.yml` with volumes and health checks
+- [x] `railway.toml` for Railway deployment
+- [x] Deployed and running on Railway: `symphony-production-0eaf.up.railway.app`
 
-**8.4 — Example Workflows**
-- `examples/linear-claude.md` — Linear + Claude Code (current default)
-- `examples/linear-codex.md` — Linear + OpenAI Codex
-- `examples/github-claude.md` — GitHub Issues + Claude Code (placeholder for future tracker)
-- AC: Each example is a valid WORKFLOW.md with inline comments
+**8.4 — CLI Enhancements [DONE]**
+- [x] Comprehensive subcommand CLI (start, stop, status, issues, issue, refresh, workspaces, workspace, validate, config, check, audit, test, run, logs)
+- [x] `--concurrency`, `--turns`, `--once`, `--tickets` flags on start
+- [x] `symphony run STI-123` one-shot command (no daemon loop)
+- [x] `--host` + `--token` for remote daemon access
+- [x] `--format json` for scripted output
+- [x] Env-templated WORKFLOW.md with `$VAR` resolution everywhere
+- [x] Bearer token auth on HTTP API (`SYMPHONY_API_TOKEN`)
+- [x] `GET /api/v1/metrics` endpoint for usage metering
+- [x] `SYMPHONY_ISSUE_TITLE` env var in hooks for descriptive PRs
+- [x] Graceful shutdown via API, SIGINT/SIGTERM, drain mode
 
-**8.5 — Contributing Guide**
-- CONTRIBUTING.md: how to add tracker plugins, agent runners, build/test/lint
-- CODE_OF_CONDUCT.md
-- Issue templates: bug report, feature request, tracker plugin
-- AC: New contributor can build and test within 5 minutes
+**8.5 — Contributing Guide [PENDING]**
+- [ ] CONTRIBUTING.md: build/test/lint, plugin development
+- [ ] Issue templates
+- [ ] CODE_OF_CONDUCT.md
 
-**8.6 — Plugin Architecture Documentation**
-- Document how to add a new tracker (trait implementation)
-- Document how to add a new agent runner
-- Document the WORKFLOW.md format extension points
-- AC: EXTENDING.md covers tracker + agent runner plugin guide
+**8.6 — Plugin Architecture Documentation [PENDING]**
+- [ ] EXTENDING.md: tracker + agent runner plugin guide
+- [ ] WORKFLOW.md format reference
 
 ---
 

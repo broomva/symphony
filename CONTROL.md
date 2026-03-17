@@ -105,6 +105,16 @@ created: 2026-03-06
 | S49 | Graceful drain waits for in-flight workers | Code review: drain loop in scheduler | — |
 | S50 | Worker abort handles tracked and cleaned up | Code review: cleanup_worker_handles | — |
 
+### CLI (S51-S56)
+| ID | Setpoint | Measurement | Spec |
+|----|----------|-------------|------|
+| S51 | `symphony run STI-123` executes single issue without daemon | Unit test: run command parses | — |
+| S52 | `--concurrency` overrides config `max_concurrent_agents` | Unit test: CLI override applied | — |
+| S53 | `--tickets STI-1,STI-2` filters dispatch to named issues | Scheduler: ticket filter applied | — |
+| S54 | `--once` runs single poll cycle then exits | Scheduler: once mode breaks loop | — |
+| S55 | `--host` + `--token` enable remote daemon access | Client: build_client with URL + bearer | — |
+| S56 | `GET /api/v1/metrics` returns usage data for metering | Unit test: endpoint returns JSON | — |
+
 ---
 
 ## Sensors (How we measure)
@@ -163,6 +173,9 @@ IF phase completed THEN:
 | `make test` | Tests only |
 | `make build` | Release binary |
 | `make control-audit` | Full audit: smoke + fmt check |
+| `make install` | Install symphony binary to ~/.cargo/bin |
+| `make publish-dry-run` | Verify all crates package for crates.io |
+| `make publish` | Publish all crates to crates.io in dependency order |
 | `cargo clippy --fix --allow-dirty` | Auto-fix lint issues |
 | `cargo fmt --all` | Auto-format code |
 
