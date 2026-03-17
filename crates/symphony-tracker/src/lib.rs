@@ -6,6 +6,7 @@
 //! Provides a Linear-compatible tracker client that fetches candidate issues,
 //! refreshes issue states, and normalizes payloads into the core domain model.
 
+pub mod github;
 pub mod graphql_tool;
 pub mod linear;
 
@@ -31,6 +32,45 @@ pub enum TrackerError {
     UnknownPayload(String),
     #[error("linear_missing_end_cursor")]
     MissingEndCursor,
+    #[error("github_api_request: {0}")]
+    GithubApiRequest(String),
+    #[error("github_api_status: {status} {body}")]
+    GithubApiStatus { status: u16, body: String },
+}
+
+/// Create a tracker client from config, dispatching on `config.kind`.
+pub fn create_tracker(
+    config: &symphony_config::types::TrackerConfig,
+) -> Result<Box<dyn TrackerClient>, TrackerError> {
+    if config.api_key.is_empty() {
+        return Err(TrackerError::MissingApiKey);
+    }
+
+    match config.kind.as_str() {
+        "linear" => {
+            if config.project_slug.is_empty() {
+                return Err(TrackerError::MissingProjectSlug);
+            }
+            Ok(Box::new(linear::LinearClient::new(
+                config.endpoint.clone(),
+                config.api_key.clone(),
+                config.project_slug.clone(),
+                config.active_states.clone(),
+            )))
+        }
+        "github" => {
+            if config.project_slug.is_empty() {
+                return Err(TrackerError::MissingProjectSlug);
+            }
+            let client = github::GithubClient::from_slug(
+                config.api_key.clone(),
+                &config.project_slug,
+                config.active_states.clone(),
+            )?;
+            Ok(Box::new(client))
+        }
+        other => Err(TrackerError::UnsupportedKind(other.to_string())),
+    }
 }
 
 /// Trait for issue tracker adapters (Spec Section 11.1).

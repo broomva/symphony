@@ -29,12 +29,7 @@ pub async fn run_run(args: RunArgs) -> anyhow::Result<()> {
 
     // Build tracker client
     let tracker: Arc<dyn symphony_tracker::TrackerClient> =
-        Arc::new(symphony_tracker::linear::LinearClient::new(
-            config.tracker.endpoint.clone(),
-            config.tracker.api_key.clone(),
-            config.tracker.project_slug.clone(),
-            config.tracker.active_states.clone(),
-        ));
+        Arc::from(symphony_tracker::create_tracker(&config.tracker)?);
 
     // Find the specific issue
     eprintln!("Fetching issue {}...", args.identifier);

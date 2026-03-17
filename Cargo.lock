@@ -1926,6 +1926,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "symphony-config",
  "symphony-core",
  "thiserror",
  "tokio",

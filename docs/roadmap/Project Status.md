@@ -18,7 +18,7 @@ Last updated: 2026-03-17
 | Metric | Value |
 |--------|-------|
 | **Phase** | Core complete (0-8), Cloud in parallel (9) |
-| **Tests** | 171 passing + 5 opt-in integration |
+| **Tests** | 185 passing + 5 opt-in integration |
 | **Warnings** | 0 (clippy clean) |
 | **Gate** | `make smoke` PASS |
 | **Spec conformance** | 100% core + extensions |
@@ -66,6 +66,8 @@ No critical gaps remain. Phase 9 (Symphony Cloud) is the next milestone.
 |---------|-------------|------|
 | PR review loop | `pr_feedback` hook captures PR comments, feeds back as next-turn context | 2026-03-17 |
 | Control metalayer governance | CLAUDE.md and AGENTS.md updated with metalayer-driven development loop | 2026-03-17 |
+| GitHub Issues tracker | `tracker.kind: github` — REST API client, label-based state mapping, PR filtering | 2026-03-17 |
+| Tracker factory | `create_tracker()` dispatches on config.kind (linear/github) | 2026-03-17 |
 
 ## Implementation Decisions
 

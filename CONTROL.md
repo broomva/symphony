@@ -125,6 +125,16 @@ created: 2026-03-06
 | S61 | `pr_feedback` output captured and available as next-turn context | Unit test: feedback piped to turn | S7.1 ext |
 | S62 | `pr_feedback` failure is logged and ignored (non-fatal) | Unit test: hook fail → no error | S9.4 ext |
 
+### GitHub Tracker (S63-S68)
+| ID | Setpoint | Measurement | Spec |
+|----|----------|-------------|------|
+| S63 | `tracker.kind: github` accepted by config validation | Unit test: validate_config_passes_with_github_kind | S6.3 |
+| S64 | GitHub issues normalized to Symphony Issue type | Unit test: normalize_github_issue | S11.3 |
+| S65 | Pull requests filtered from GitHub issues response | Unit test: normalize_filters_pull_requests | — |
+| S66 | `project_slug` parsed as `owner/repo` | Unit test: parse_owner_repo_valid | — |
+| S67 | Label-based state mapping for active states | Unit test: state_from_labels_matches_active | — |
+| S68 | `create_tracker()` factory dispatches on kind | Code: start.rs + run.rs use factory | S11.1 |
+
 ---
 
 ## Sensors (How we measure)

@@ -314,7 +314,7 @@ pub fn validate_dispatch_config(config: &ServiceConfig) -> Result<(), Vec<String
 
     if config.tracker.kind.is_empty() {
         errors.push("tracker.kind is required".into());
-    } else if config.tracker.kind != "linear" {
+    } else if config.tracker.kind != "linear" && config.tracker.kind != "github" {
         errors.push(format!(
             "unsupported tracker.kind: '{}'",
             config.tracker.kind
@@ -325,8 +325,13 @@ pub fn validate_dispatch_config(config: &ServiceConfig) -> Result<(), Vec<String
         errors.push("tracker.api_key is required (after $VAR resolution)".into());
     }
 
-    if config.tracker.kind == "linear" && config.tracker.project_slug.is_empty() {
-        errors.push("tracker.project_slug is required for linear tracker".into());
+    if (config.tracker.kind == "linear" || config.tracker.kind == "github")
+        && config.tracker.project_slug.is_empty()
+    {
+        errors.push(format!(
+            "tracker.project_slug is required for {} tracker",
+            config.tracker.kind
+        ));
     }
 
     if config.codex.command.is_empty() {
@@ -678,6 +683,43 @@ Prompt body"#;
             tracker: crate::types::TrackerConfig {
                 kind: "linear".into(),
                 api_key: "key".into(),
+                project_slug: String::new(),
+                ..Default::default()
+            },
+            codex: CodexConfig {
+                command: "codex".into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let errors = validate_dispatch_config(&config).unwrap_err();
+        assert!(errors.iter().any(|e| e.contains("project_slug")));
+    }
+
+    #[test]
+    fn validate_config_passes_with_github_kind() {
+        let config = ServiceConfig {
+            tracker: crate::types::TrackerConfig {
+                kind: "github".into(),
+                api_key: "ghp_token".into(),
+                project_slug: "owner/repo".into(),
+                ..Default::default()
+            },
+            codex: CodexConfig {
+                command: "codex app-server".into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        assert!(validate_dispatch_config(&config).is_ok());
+    }
+
+    #[test]
+    fn validate_missing_project_slug_for_github() {
+        let config = ServiceConfig {
+            tracker: crate::types::TrackerConfig {
+                kind: "github".into(),
+                api_key: "ghp_token".into(),
                 project_slug: String::new(),
                 ..Default::default()
             },

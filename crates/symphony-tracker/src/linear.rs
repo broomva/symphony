@@ -646,6 +646,11 @@ mod tests {
             TrackerError::GraphqlErrors("x".into()),
             TrackerError::UnknownPayload("x".into()),
             TrackerError::MissingEndCursor,
+            TrackerError::GithubApiRequest("x".into()),
+            TrackerError::GithubApiStatus {
+                status: 404,
+                body: "x".into(),
+            },
         ];
         let msgs: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
         assert!(msgs[0].starts_with("unsupported_tracker_kind"));
@@ -656,6 +661,8 @@ mod tests {
         assert!(msgs[5].starts_with("linear_graphql_errors"));
         assert!(msgs[6].starts_with("linear_unknown_payload"));
         assert!(msgs[7].starts_with("linear_missing_end_cursor"));
+        assert!(msgs[8].starts_with("github_api_request"));
+        assert!(msgs[9].starts_with("github_api_status"));
     }
 
     #[test]

@@ -5,10 +5,11 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-description = "Issue tracker integration (Linear GraphQL) for Symphony"
+description = "Issue tracker integration (Linear, GitHub) for Symphony"
 
 [dependencies]
 symphony-core.workspace = true
+symphony-config.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 reqwest.workspace = true

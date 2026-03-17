@@ -59,12 +59,7 @@ pub async fn run_start(args: StartArgs, port_override: Option<u16>) -> anyhow::R
 
     // Build tracker client
     let tracker: Arc<dyn symphony_tracker::TrackerClient> =
-        Arc::new(symphony_tracker::linear::LinearClient::new(
-            config.tracker.endpoint.clone(),
-            config.tracker.api_key.clone(),
-            config.tracker.project_slug.clone(),
-            config.tracker.active_states.clone(),
-        ));
+        Arc::from(symphony_tracker::create_tracker(&config.tracker)?);
 
     // Build workspace manager
     let workspace_mgr = Arc::new(symphony_workspace::WorkspaceManager::new(
