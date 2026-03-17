@@ -32,12 +32,10 @@ hooks:
       git commit -m "$COMMIT_TITLE"
       git push -u origin "$SYMPHONY_ISSUE_ID" --force-with-lease || true
       if ! gh pr view "$SYMPHONY_ISSUE_ID" --json state >/dev/null 2>&1; then
+        PR_BODY="Automated changes by Symphony agent for $SYMPHONY_ISSUE_ID - $SYMPHONY_ISSUE_TITLE"
         gh pr create \
           --title "$COMMIT_TITLE" \
-          --body "Automated changes by Symphony agent for [$SYMPHONY_ISSUE_ID](https://linear.app/stimulus/issue/$SYMPHONY_ISSUE_ID)
-
-## Summary
-$SYMPHONY_ISSUE_TITLE" \
+          --body "$PR_BODY" \
           --base "$SYMPHONY_BASE_BRANCH" \
           --head "$SYMPHONY_ISSUE_ID" || true
       fi
