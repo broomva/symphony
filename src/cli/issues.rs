@@ -1,17 +1,16 @@
 //! Issues and refresh commands — query issues, trigger poll.
 
-use super::client::{resolve_port, SymphonyClient};
 use super::output;
-use super::OutputFormat;
+use super::{ConnOpts, OutputFormat};
 
 /// Run the `issues` command — list running + retrying issues.
-pub async fn run_issues(port: Option<u16>, format: OutputFormat) -> anyhow::Result<()> {
-    let client = SymphonyClient::new(resolve_port(port));
+pub async fn run_issues(conn: &ConnOpts, format: OutputFormat) -> anyhow::Result<()> {
+    let client = conn.client();
 
     let state = match client.get_state().await {
         Ok(s) => s,
         Err(e) if e.is_connection_error() => {
-            eprintln!("daemon not running (port {})", resolve_port(port));
+            eprintln!("daemon not running ({})", conn.target());
             std::process::exit(1);
         }
         Err(e) => return Err(e.into()),
@@ -77,15 +76,15 @@ pub async fn run_issues(port: Option<u16>, format: OutputFormat) -> anyhow::Resu
 /// Run the `issue` command — detail for one issue.
 pub async fn run_issue(
     identifier: &str,
-    port: Option<u16>,
+    conn: &ConnOpts,
     format: OutputFormat,
 ) -> anyhow::Result<()> {
-    let client = SymphonyClient::new(resolve_port(port));
+    let client = conn.client();
 
     let issue = match client.get_issue(identifier).await {
         Ok(i) => i,
         Err(e) if e.is_connection_error() => {
-            eprintln!("daemon not running (port {})", resolve_port(port));
+            eprintln!("daemon not running ({})", conn.target());
             std::process::exit(1);
         }
         Err(e) => return Err(e.into()),
@@ -106,8 +105,8 @@ pub async fn run_issue(
 }
 
 /// Run the `refresh` command — trigger immediate poll.
-pub async fn run_refresh(port: Option<u16>) -> anyhow::Result<()> {
-    let client = SymphonyClient::new(resolve_port(port));
+pub async fn run_refresh(conn: &ConnOpts) -> anyhow::Result<()> {
+    let client = conn.client();
 
     match client.refresh().await {
         Ok(resp) => {
@@ -115,7 +114,7 @@ pub async fn run_refresh(port: Option<u16>) -> anyhow::Result<()> {
             Ok(())
         }
         Err(e) if e.is_connection_error() => {
-            eprintln!("daemon not running (port {})", resolve_port(port));
+            eprintln!("daemon not running ({})", conn.target());
             std::process::exit(1);
         }
         Err(e) => Err(e.into()),

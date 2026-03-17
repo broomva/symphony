@@ -1,17 +1,16 @@
 //! Status and stop commands — query/control daemon state.
 
-use super::client::{resolve_port, SymphonyClient};
 use super::output;
-use super::OutputFormat;
+use super::{ConnOpts, OutputFormat};
 
 /// Run the `status` command.
-pub async fn run_status(port: Option<u16>, format: OutputFormat) -> anyhow::Result<()> {
-    let client = SymphonyClient::new(resolve_port(port));
+pub async fn run_status(conn: &ConnOpts, format: OutputFormat) -> anyhow::Result<()> {
+    let client = conn.client();
 
     let state = match client.get_state().await {
         Ok(s) => s,
         Err(e) if e.is_connection_error() => {
-            eprintln!("daemon not running (port {})", resolve_port(port));
+            eprintln!("daemon not running ({})", conn.target());
             std::process::exit(1);
         }
         Err(e) => return Err(e.into()),
@@ -78,8 +77,8 @@ pub async fn run_status(port: Option<u16>, format: OutputFormat) -> anyhow::Resu
 }
 
 /// Run the `stop` command.
-pub async fn run_stop(port: Option<u16>) -> anyhow::Result<()> {
-    let client = SymphonyClient::new(resolve_port(port));
+pub async fn run_stop(conn: &ConnOpts) -> anyhow::Result<()> {
+    let client = conn.client();
 
     match client.shutdown().await {
         Ok(resp) => {
@@ -90,7 +89,7 @@ pub async fn run_stop(port: Option<u16>) -> anyhow::Result<()> {
             Ok(())
         }
         Err(e) if e.is_connection_error() => {
-            eprintln!("daemon not running (port {})", resolve_port(port));
+            eprintln!("daemon not running ({})", conn.target());
             std::process::exit(1);
         }
         Err(e) => Err(e.into()),

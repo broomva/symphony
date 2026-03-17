@@ -26,6 +26,14 @@ pub struct Cli {
     #[arg(long, global = true, env = "SYMPHONY_PORT")]
     pub port: Option<u16>,
 
+    /// Remote daemon host (e.g. symphony.up.railway.app).
+    #[arg(long, global = true, env = "SYMPHONY_HOST")]
+    pub host: Option<String>,
+
+    /// API bearer token for authenticated access (env: SYMPHONY_API_TOKEN).
+    #[arg(long, global = true, env = "SYMPHONY_API_TOKEN")]
+    pub token: Option<String>,
+
     /// Output format.
     #[arg(long, global = true, default_value = "table", value_enum)]
     pub format: OutputFormat,
@@ -169,6 +177,31 @@ pub struct LogsArgs {
     /// Log file path.
     #[arg(default_value = "~/.symphony/symphony.log")]
     pub path: String,
+}
+
+/// Connection options for client commands.
+pub struct ConnOpts {
+    pub host: Option<String>,
+    pub port: Option<u16>,
+    pub token: Option<String>,
+}
+
+impl ConnOpts {
+    pub fn client(&self) -> client::SymphonyClient {
+        client::build_client(
+            self.host.as_deref(),
+            self.port,
+            self.token.as_deref(),
+        )
+    }
+
+    /// Display label for error messages.
+    pub fn target(&self) -> String {
+        match &self.host {
+            Some(h) => h.clone(),
+            None => format!("localhost:{}", self.port.unwrap_or(client::DEFAULT_PORT)),
+        }
+    }
 }
 
 /// Output format for CLI display.

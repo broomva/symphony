@@ -474,7 +474,15 @@ pub async fn start_server_with_state(
     shutdown_rx: Option<tokio::sync::watch::Receiver<bool>>,
 ) -> anyhow::Result<()> {
     let app = build_router(state);
-    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    // Bind 0.0.0.0 when SYMPHONY_BIND=0.0.0.0 or when PORT env is set (Railway/cloud)
+    let bind_addr: [u8; 4] = if std::env::var("SYMPHONY_BIND").as_deref() == Ok("0.0.0.0")
+        || std::env::var("PORT").is_ok()
+    {
+        [0, 0, 0, 0]
+    } else {
+        [127, 0, 0, 1]
+    };
+    let addr = std::net::SocketAddr::from((bind_addr, port));
     tracing::info!(%addr, "starting HTTP server");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;

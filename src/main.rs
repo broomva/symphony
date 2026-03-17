@@ -28,8 +28,14 @@ fn main() -> anyhow::Result<()> {
     }
 
     // Build and run the async runtime
+    let conn = cli::ConnOpts {
+        host: parsed.host,
+        port: parsed.port,
+        token: parsed.token,
+    };
+
     let rt = tokio::runtime::Runtime::new()?;
-    let result = rt.block_on(run_command(command, parsed.port, parsed.format));
+    let result = rt.block_on(run_command(command, conn, parsed.format));
 
     match result {
         Ok(()) => std::process::exit(0),
@@ -42,31 +48,24 @@ fn main() -> anyhow::Result<()> {
 
 async fn run_command(
     command: Command,
-    port: Option<u16>,
+    conn: cli::ConnOpts,
     format: cli::OutputFormat,
 ) -> anyhow::Result<()> {
     match command {
         Command::Start(args) => {
-            // Initialize logging for daemon mode
             symphony_observability::init_logging();
-            cli::start::run_start(args, port).await
+            cli::start::run_start(args, conn.port).await
         }
-        Command::Stop => cli::status::run_stop(port).await,
-        Command::Status => cli::status::run_status(port, format).await,
-        Command::Issues => cli::issues::run_issues(port, format).await,
+        Command::Stop => cli::status::run_stop(&conn).await,
+        Command::Status => cli::status::run_status(&conn, format).await,
+        Command::Issues => cli::issues::run_issues(&conn, format).await,
         Command::Issue(args) => {
-            cli::issues::run_issue(&args.identifier, port, format).await
+            cli::issues::run_issue(&args.identifier, &conn, format).await
         }
-        Command::Refresh => cli::issues::run_refresh(port).await,
-        Command::Workspaces => cli::workspaces::run_workspaces(port, format).await,
+        Command::Refresh => cli::issues::run_refresh(&conn).await,
+        Command::Workspaces => cli::workspaces::run_workspaces(&conn, format).await,
         Command::Workspace(args) => {
-            cli::workspaces::run_workspace(
-                &args.identifier,
-                args.clean,
-                port,
-                format,
-            )
-            .await
+            cli::workspaces::run_workspace(&args.identifier, args.clean, &conn, format).await
         }
         Command::Validate(args) => {
             cli::control::run_validate(&args.workflow_path, format).await
