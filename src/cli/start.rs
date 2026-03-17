@@ -88,6 +88,7 @@ pub async fn run_start(args: StartArgs, port_override: Option<u16>) -> anyhow::R
             orchestrator: obs_state.clone(),
             refresh_tx: Some(refresh_tx),
             shutdown_tx: Some(Arc::new(shutdown_tx.clone())),
+            api_token: std::env::var("SYMPHONY_API_TOKEN").ok().filter(|s| !s.is_empty()),
         };
         tokio::spawn(async move {
             if let Err(e) =

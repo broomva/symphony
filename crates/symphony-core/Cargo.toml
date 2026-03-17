@@ -2,6 +2,10 @@
 name = "symphony-core"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Domain model and shared types for Symphony orchestration engine"
 
 [dependencies]
 serde.workspace = true

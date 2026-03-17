@@ -2,6 +2,10 @@
 name = "symphony-workspace"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Workspace management and hook execution for Symphony"
 
 [dependencies]
 symphony-core.workspace = true

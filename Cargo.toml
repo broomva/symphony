@@ -15,6 +15,9 @@ version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 rust-version = "1.85"
+repository = "https://github.com/broomva/symphony"
+homepage = "https://github.com/broomva/symphony"
+authors = ["Carlos Escobar-Valbuena <carlosbvalbuena@gmail.com>"]
 
 [workspace.dependencies]
 # Async runtime
@@ -67,6 +70,15 @@ symphony-observability = { path = "crates/symphony-observability" }
 name = "symphony"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Orchestration engine for coding agents — polls issue trackers, creates workspaces, and runs AI coding sessions"
+readme = "README.md"
+keywords = ["orchestration", "agents", "coding", "linear", "automation"]
+categories = ["development-tools", "command-line-utilities"]
 
 [[bin]]
 name = "symphony"

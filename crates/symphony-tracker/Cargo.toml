@@ -2,6 +2,10 @@
 name = "symphony-tracker"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Issue tracker integration (Linear GraphQL) for Symphony"
 
 [dependencies]
 symphony-core.workspace = true

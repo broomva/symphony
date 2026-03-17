@@ -90,8 +90,13 @@ See [[docs/operations/Control Harness|Control Harness]] for the build gate detai
 
 By contributing, you agree that your contributions will be licensed under the Apache License 2.0.
 
+## Code of Conduct
+
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). Please be respectful and constructive.
+
 ## See Also
 
+- [[EXTENDING]] — plugin architecture: adding trackers and agent runners
 - [[docs/architecture/Crate Map|Crate Map]] — all crates with spec coverage
 - [[CONTROL]] — quality setpoints your code must satisfy
 - [[docs/operations/Configuration Reference|Configuration Reference]] — WORKFLOW.md format

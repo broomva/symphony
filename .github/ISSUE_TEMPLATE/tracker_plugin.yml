@@ -1,0 +1,55 @@
+name: Tracker Plugin
+description: Request or propose a new issue tracker integration
+labels: ["tracker-plugin", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Want Symphony to support a new issue tracker? Fill in the details below.
+        See [EXTENDING.md](../../EXTENDING.md) for how tracker plugins work.
+
+  - type: input
+    id: tracker
+    attributes:
+      label: Tracker Name
+      description: Which issue tracker?
+      placeholder: "e.g., GitHub Issues, Jira, GitLab, Asana"
+    validations:
+      required: true
+
+  - type: textarea
+    id: api
+    attributes:
+      label: API Details
+      description: Link to the tracker's API docs and any relevant details.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: status
+    attributes:
+      label: Implementation Status
+      options:
+        - "I'd like someone to build this"
+        - "I'm planning to build this myself"
+        - "I have a working prototype"
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Proposed WORKFLOW.md Config
+      description: What would the tracker section look like?
+      render: yaml
+      placeholder: |
+        tracker:
+          kind: github
+          api_key: $GITHUB_TOKEN
+          project_slug: org/repo
+          active_states: [open]
+          terminal_states: [closed]
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional Notes
+      description: Anything else relevant (auth quirks, pagination, rate limits, etc.).

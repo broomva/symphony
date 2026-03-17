@@ -4,9 +4,10 @@
 
 use std::sync::Arc;
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Request, State};
 use axum::http::StatusCode;
-use axum::response::{Html, IntoResponse};
+use axum::middleware::{self, Next};
+use axum::response::{Html, IntoResponse, Response};
 use axum::{Json, Router, routing::get};
 use serde::Serialize;
 use symphony_core::OrchestratorState;
@@ -18,6 +19,10 @@ pub struct AppState {
     pub orchestrator: Arc<Mutex<Option<OrchestratorState>>>,
     pub refresh_tx: Option<tokio::sync::mpsc::Sender<()>>,
     pub shutdown_tx: Option<Arc<tokio::sync::watch::Sender<bool>>>,
+    /// Optional bearer token for API authentication.
+    /// When set, all `/api/v1/*` endpoints require `Authorization: Bearer <token>`.
+    /// Health endpoints (`/healthz`, `/readyz`) and dashboard (`/`) remain open.
+    pub api_token: Option<String>,
 }
 
 /// State summary response (Spec Section 13.7.2).
@@ -86,10 +91,8 @@ pub struct ErrorDetail {
 
 /// Build the HTTP router (S13.7).
 pub fn build_router(state: AppState) -> Router {
-    Router::new()
-        .route("/", get(dashboard))
-        .route("/healthz", get(healthz))
-        .route("/readyz", get(readyz))
+    // API routes — protected by optional bearer token auth
+    let api_routes = Router::new()
         .route("/api/v1/state", get(get_state))
         .route("/api/v1/workspaces", get(get_workspaces))
         .route(
@@ -101,7 +104,64 @@ pub fn build_router(state: AppState) -> Router {
             axum::routing::post(post_shutdown).get(method_not_allowed),
         )
         .route("/api/v1/{identifier}", get(get_issue))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
+
+    // Public routes — no auth required
+    Router::new()
+        .route("/", get(dashboard))
+        .route("/healthz", get(healthz))
+        .route("/readyz", get(readyz))
+        .merge(api_routes)
         .with_state(state)
+}
+
+/// Bearer token auth middleware. Only enforced when `api_token` is configured.
+async fn auth_middleware(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    if let Some(expected) = &state.api_token {
+        let auth_header = request
+            .headers()
+            .get("authorization")
+            .and_then(|v| v.to_str().ok());
+
+        match auth_header {
+            Some(header) if header.starts_with("Bearer ") => {
+                let token = &header[7..];
+                if token != expected.as_str() {
+                    return (
+                        StatusCode::UNAUTHORIZED,
+                        Json(serde_json::json!({
+                            "error": {
+                                "code": "unauthorized",
+                                "message": "invalid bearer token"
+                            }
+                        })),
+                    )
+                        .into_response();
+                }
+            }
+            _ => {
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    Json(serde_json::json!({
+                        "error": {
+                            "code": "unauthorized",
+                            "message": "missing Authorization: Bearer <token> header"
+                        }
+                    })),
+                )
+                    .into_response();
+            }
+        }
+    }
+
+    next.run(request).await
 }
 
 /// Dashboard endpoint (S13.7.1).
@@ -402,6 +462,7 @@ pub async fn start_server(port: u16) -> anyhow::Result<()> {
         orchestrator: Arc::new(Mutex::new(None)),
         refresh_tx: None,
         shutdown_tx: None,
+        api_token: None,
     };
     start_server_with_state(port, state, None).await
 }
@@ -441,6 +502,7 @@ mod tests {
             orchestrator: Arc::new(Mutex::new(Some(OrchestratorState::new(30000, 10)))),
             refresh_tx: None,
             shutdown_tx: None,
+            api_token: None,
         }
     }
 
@@ -533,6 +595,7 @@ mod tests {
             orchestrator: Arc::new(Mutex::new(None)),
             refresh_tx: None,
             shutdown_tx: None,
+            api_token: None,
         };
         let app = build_router(state);
         let req = Request::builder()
@@ -562,6 +625,7 @@ mod tests {
             orchestrator: Arc::new(Mutex::new(Some(OrchestratorState::new(30000, 10)))),
             refresh_tx: None,
             shutdown_tx: Some(Arc::new(shutdown_tx)),
+            api_token: None,
         };
         let app = build_router(state);
         let req = Request::builder()
@@ -608,5 +672,76 @@ mod tests {
             .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert!(json.is_array());
+    }
+
+    #[tokio::test]
+    async fn auth_rejects_missing_token() {
+        let state = AppState {
+            orchestrator: Arc::new(Mutex::new(Some(OrchestratorState::new(30000, 10)))),
+            refresh_tx: None,
+            shutdown_tx: None,
+            api_token: Some("secret-token".into()),
+        };
+        let app = build_router(state);
+        let req = Request::builder()
+            .uri("/api/v1/state")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn auth_rejects_wrong_token() {
+        let state = AppState {
+            orchestrator: Arc::new(Mutex::new(Some(OrchestratorState::new(30000, 10)))),
+            refresh_tx: None,
+            shutdown_tx: None,
+            api_token: Some("secret-token".into()),
+        };
+        let app = build_router(state);
+        let req = Request::builder()
+            .uri("/api/v1/state")
+            .header("Authorization", "Bearer wrong-token")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn auth_accepts_correct_token() {
+        let state = AppState {
+            orchestrator: Arc::new(Mutex::new(Some(OrchestratorState::new(30000, 10)))),
+            refresh_tx: None,
+            shutdown_tx: None,
+            api_token: Some("secret-token".into()),
+        };
+        let app = build_router(state);
+        let req = Request::builder()
+            .uri("/api/v1/state")
+            .header("Authorization", "Bearer secret-token")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn health_endpoints_bypass_auth() {
+        let state = AppState {
+            orchestrator: Arc::new(Mutex::new(Some(OrchestratorState::new(30000, 10)))),
+            refresh_tx: None,
+            shutdown_tx: None,
+            api_token: Some("secret-token".into()),
+        };
+        let app = build_router(state);
+        // healthz should work without token
+        let req = Request::builder()
+            .uri("/healthz")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 }
