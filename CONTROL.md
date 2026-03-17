@@ -161,6 +161,14 @@ This control metalayer drives the development feedback loop:
 | S75 | Remote daemon access without token fails gracefully | Integration test: remote_without_token_fails | — |
 | S76 | `symphony run` with missing workflow fails cleanly | Integration test: run_missing_workflow_fails | — |
 
+### PR Merge Automation (S77-S80)
+| ID | Setpoint | Measurement | Spec |
+|----|----------|-------------|------|
+| S77 | PR title must follow conventional commits format | CI: pr-lint job regex check | — |
+| S78 | All 4 CI gates must pass before merge | GitHub branch protection: required checks | — |
+| S79 | Auto-merge enabled when all gates green | CI: auto-merge job enables squash merge | — |
+| S80 | Governance files must exist (CLAUDE, AGENTS, CONTROL, PLANS, EXTENDING, CONTRIBUTING) | CI: control-audit job file check | — |
+
 ### Done State Transition (S69-S70)
 | ID | Setpoint | Measurement | Spec |
 |----|----------|-------------|------|

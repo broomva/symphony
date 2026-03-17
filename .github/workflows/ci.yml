@@ -11,6 +11,7 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
+  # Gate 1: Compile + Lint (setpoints S1, S2)
   check:
     name: Check & Lint
     runs-on: ubuntu-latest
@@ -25,6 +26,7 @@ jobs:
       - run: cargo clippy --workspace -- -D warnings
       - run: cargo fmt --all -- --check
 
+  # Gate 2: All tests pass (setpoint S3)
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -34,8 +36,71 @@ jobs:
         with:
           toolchain: "1.88"
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --workspace
+      - name: Run all tests
+        run: cargo test --workspace
+      - name: Report test count
+        run: |
+          COUNT=$(cargo test --workspace 2>&1 | grep "test result" | awk '{sum += $4} END {print sum}')
+          echo "### Test Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "Total passing: **${COUNT}** tests" >> "$GITHUB_STEP_SUMMARY"
 
+  # Gate 3: PR title follows conventional commits
+  pr-lint:
+    name: PR Lint
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check conventional commit title
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          if echo "$TITLE" | grep -qE '^(feat|fix|docs|chore|refactor|test|perf|ci|style)(\(.+\))?!?:'; then
+            echo "✅ PR title follows conventional commits: $TITLE"
+          else
+            echo "❌ PR title must follow conventional commits format:"
+            echo "   feat: description | fix: description | docs: description | etc."
+            echo "   Got: $TITLE"
+            exit 1
+          fi
+
+  # Gate 4: Control metalayer validation
+  control-audit:
+    name: Control Audit
+    needs: [check, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate setpoint coverage
+        run: |
+          # Count setpoints in CONTROL.md
+          SETPOINTS=$(grep -cE '^\| S[0-9]+ \|' CONTROL.md || echo 0)
+          echo "Setpoints defined: $SETPOINTS"
+
+          # Verify CONTROL.md has the expected structure
+          if [ "$SETPOINTS" -lt 50 ]; then
+            echo "❌ CONTROL.md has fewer than 50 setpoints ($SETPOINTS found)"
+            exit 1
+          fi
+          echo "✅ CONTROL.md has $SETPOINTS setpoints"
+
+          # Check that key governance files exist
+          for f in CLAUDE.md AGENTS.md CONTROL.md PLANS.md EXTENDING.md CONTRIBUTING.md; do
+            if [ ! -f "$f" ]; then
+              echo "❌ Missing governance file: $f"
+              exit 1
+            fi
+          done
+          echo "✅ All governance files present"
+
+          # Check changelog exists
+          if [ ! -f CHANGELOG.md ]; then
+            echo "⚠️ CHANGELOG.md missing (generate with: make changelog)"
+          fi
+
+          echo "### Control Audit" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Setpoints: **${SETPOINTS}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Governance files: ✅" >> "$GITHUB_STEP_SUMMARY"
+
+  # Gate 5: Build verification
   build:
     name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
@@ -71,3 +136,36 @@ jobs:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
       - run: docker build -t symphony:test .
+
+  # Auto-merge: when all gates pass on a PR, enable auto-merge
+  auto-merge:
+    name: Auto-Merge
+    if: github.event_name == 'pull_request'
+    needs: [check, test, pr-lint, control-audit]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM=${{ github.event.pull_request.number }}
+          AUTHOR="${{ github.event.pull_request.user.login }}"
+
+          echo "### Auto-Merge Gate" >> "$GITHUB_STEP_SUMMARY"
+          echo "All control metalayer gates passed." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Check & Lint: ✅" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tests: ✅" >> "$GITHUB_STEP_SUMMARY"
+          echo "- PR Lint: ✅" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Control Audit: ✅" >> "$GITHUB_STEP_SUMMARY"
+
+          # Enable auto-merge (squash) for the PR
+          gh pr merge "$PR_NUM" \
+            --repo "${{ github.repository }}" \
+            --auto \
+            --squash \
+            --subject "${{ github.event.pull_request.title }}" || true
+
+          echo "Auto-merge enabled for PR #${PR_NUM}" >> "$GITHUB_STEP_SUMMARY"

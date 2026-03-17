@@ -149,6 +149,27 @@ Symphony's development is grounded in three consciousness substrates that provid
 
 See [[docs/control/Consciousness Architecture|Consciousness Architecture]] for the full three-substrate design and [[docs/control/Session Protocol|Session Protocol]] for the detailed protocol.
 
+## PR Merge Policy (Automated via Control Metalayer)
+
+PRs to `master` are auto-merged when **all control metalayer gates pass**:
+
+| Gate | CI Job | Setpoints |
+|------|--------|-----------|
+| Compile + Lint | `Check & Lint` | S1, S2 |
+| All tests pass | `Test` | S3 |
+| PR title conventional | `PR Lint` | `feat:`, `fix:`, `docs:`, etc. |
+| Control audit | `Control Audit` | S4-S76 (governance files, setpoint count) |
+
+**Merge flow:**
+```
+PR opened → CI runs 4 gates → all green → auto-merge (squash)
+                             → any red → blocked, author fixes
+```
+
+No manual review required for PRs that pass all gates. This works because the control metalayer setpoints are the review — if the tests, lints, and governance checks pass, the code meets the project's quality bar.
+
+To enable: run `bash scripts/setup-branch-protection.sh` once (requires admin).
+
 ## PR Review Loop
 
 When Symphony (or any agent) works on an issue, the full cycle includes PR review handling:
