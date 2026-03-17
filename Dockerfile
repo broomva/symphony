@@ -20,7 +20,7 @@ FROM debian:bookworm-slim
 
 # System deps + git + gh CLI + Node.js (for Claude Code CLI)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates git curl gnupg \
+    ca-certificates git curl gnupg sudo \
     && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
        | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
@@ -32,15 +32,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Claude Code CLI globally
 RUN npm install -g @anthropic-ai/claude-code
 
-# Copy Symphony binary
-COPY --from=builder /app/target/release/symphony /usr/local/bin/symphony
-COPY WORKFLOW.md /app/WORKFLOW.md
-WORKDIR /app
+# Create non-root user (Claude Code refuses --dangerously-skip-permissions as root)
+RUN useradd -m -s /bin/bash symphony \
+    && mkdir -p /app/workspaces \
+    && chown -R symphony:symphony /app
 
-# Claude Code uses ANTHROPIC_API_KEY for headless auth (no interactive login needed)
-# Set via Railway env vars: ANTHROPIC_API_KEY, LINEAR_API_KEY, etc.
+# Copy Symphony binary and startup script
+COPY --from=builder /app/target/release/symphony /usr/local/bin/symphony
+COPY --chown=symphony:symphony WORKFLOW.md /app/WORKFLOW.md
+COPY --chown=symphony:symphony start.sh /app/start.sh
+
+WORKDIR /app
+USER symphony
+
 ENV SYMPHONY_BIND=0.0.0.0
 EXPOSE 8080
 
-# Use shell form so $PORT is expanded at runtime
-CMD symphony start --port ${PORT:-8080} WORKFLOW.md
+# start.sh fetches WORKFLOW.md from control plane if SYMPHONY_CLOUD_CONFIG_URL is set
+CMD ["/app/start.sh"]

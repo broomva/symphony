@@ -262,8 +262,13 @@ fn get_u64(v: &serde_yaml::Value, key: &str) -> Option<u64> {
     v.as_mapping()
         .and_then(|m| m.get(serde_yaml::Value::String(key.into())))
         .and_then(|v| {
-            v.as_u64()
-                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+            v.as_u64().or_else(|| {
+                v.as_str().and_then(|s| {
+                    // Support $ENV_VAR references in numeric fields
+                    let resolved = resolve_env(s);
+                    resolved.parse().ok()
+                })
+            })
         })
 }
 
@@ -271,8 +276,12 @@ fn get_i64(v: &serde_yaml::Value, key: &str) -> Option<i64> {
     v.as_mapping()
         .and_then(|m| m.get(serde_yaml::Value::String(key.into())))
         .and_then(|v| {
-            v.as_i64()
-                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+            v.as_i64().or_else(|| {
+                v.as_str().and_then(|s| {
+                    let resolved = resolve_env(s);
+                    resolved.parse().ok()
+                })
+            })
         })
 }
 

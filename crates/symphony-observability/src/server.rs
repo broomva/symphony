@@ -103,6 +103,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/v1/shutdown",
             axum::routing::post(post_shutdown).get(method_not_allowed),
         )
+        .route("/api/v1/metrics", get(get_metrics))
         .route("/api/v1/{identifier}", get(get_issue))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
@@ -347,6 +348,47 @@ async fn get_workspaces(State(state): State<AppState>) -> Json<serde_json::Value
     }
 
     Json(serde_json::Value::Array(entries))
+}
+
+/// GET /api/v1/metrics — usage metrics for metering scrape.
+async fn get_metrics(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let snapshot = state.orchestrator.lock().await;
+    match snapshot.as_ref() {
+        Some(s) => {
+            // Calculate active session elapsed time
+            let now = chrono::Utc::now();
+            let active_seconds: f64 = s
+                .running
+                .values()
+                .map(|e| now.signed_duration_since(e.started_at).num_seconds() as f64)
+                .sum();
+
+            Json(serde_json::json!({
+                "timestamp": now.to_rfc3339(),
+                "totals": {
+                    "input_tokens": s.codex_totals.input_tokens,
+                    "output_tokens": s.codex_totals.output_tokens,
+                    "total_tokens": s.codex_totals.total_tokens,
+                    "seconds_running": s.codex_totals.seconds_running + active_seconds,
+                },
+                "current": {
+                    "running_sessions": s.running.len(),
+                    "retrying_sessions": s.retry_attempts.len(),
+                    "claimed_issues": s.claimed.len(),
+                },
+                "config": {
+                    "poll_interval_ms": s.poll_interval_ms,
+                    "max_concurrent_agents": s.max_concurrent_agents,
+                }
+            }))
+        }
+        None => Json(serde_json::json!({
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+            "totals": { "input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "seconds_running": 0.0 },
+            "current": { "running_sessions": 0, "retrying_sessions": 0, "claimed_issues": 0 },
+            "config": { "poll_interval_ms": 0, "max_concurrent_agents": 0 }
+        })),
+    }
 }
 
 /// GET /healthz — liveness probe (always 200).
