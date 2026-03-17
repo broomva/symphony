@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Symphony core domain model.
 //!
 //! Defines the shared types used across all Symphony layers:

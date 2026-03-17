@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Logs command — tail daemon log file.
 
 use std::io::{BufRead, BufReader, Seek, SeekFrom};

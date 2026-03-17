@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Orchestrator runtime state (Spec Section 4.1.8).
 
 use std::collections::{HashMap, HashSet};

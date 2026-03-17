@@ -516,7 +516,7 @@ Phases are ordered by dependency: each phase only depends on prior phases.
 **8.1 — License and Attribution [DONE]**
 - [x] License changed to Apache 2.0
 - [x] NOTICE file with OpenAI Symphony spec attribution
-- [ ] License headers in source files (deferred)
+- [x] Apache 2.0 + SPDX license headers in all 35 source files
 
 **8.2 — CI/CD Pipeline [DONE]**
 - [x] GitHub Actions CI: check + clippy + fmt + test on PR/push

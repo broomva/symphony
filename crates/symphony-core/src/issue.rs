@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Normalized issue record (Spec Section 4.1.1).
 
 use chrono::{DateTime, Utc};

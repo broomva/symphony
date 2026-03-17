@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Linear issue tracker adapter (Spec Sections 11.2, 11.3, 11.4).
 
 use async_trait::async_trait;

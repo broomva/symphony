@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! CLI argument parsing and subcommand routing.
 //!
 //! Provides the `Cli` struct (clap derive) and `Command` enum for all subcommands.

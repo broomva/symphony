@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Start command — launches the Symphony daemon.
 //!
 //! Extracted from the original `main.rs` `run()` function.

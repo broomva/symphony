@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Reconciliation logic (Spec Sections 8.4, 8.5).
 //!
 //! Stall detection, state refresh, retry backoff, terminal cleanup.

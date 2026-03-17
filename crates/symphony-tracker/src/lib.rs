@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Issue tracker integration (Spec Section 11).
 //!
 //! Provides a Linear-compatible tracker client that fetches candidate issues,

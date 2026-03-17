@@ -114,6 +114,8 @@ created: 2026-03-06
 | S54 | `--once` runs single poll cycle then exits | Scheduler: once mode breaks loop | — |
 | S55 | `--host` + `--token` enable remote daemon access | Client: build_client with URL + bearer | — |
 | S56 | `GET /api/v1/metrics` returns usage data for metering | Unit test: endpoint returns JSON | — |
+| S57 | `GET /metrics` returns Prometheus text format | Unit test: prometheus_metrics_returns_text | — |
+| S58 | `/metrics` endpoint bypasses auth | Unit test: prometheus_metrics_bypasses_auth | — |
 
 ---
 

@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Optional `linear_graphql` client-side tool extension (Spec Section 10.5).
 //!
 //! Allows the coding agent to execute GraphQL queries/mutations against Linear

@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Run command — execute a single issue one-shot without the daemon loop.
 
 use std::sync::Arc;

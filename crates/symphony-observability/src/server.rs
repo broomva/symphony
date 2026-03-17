@@ -1,6 +1,9 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Optional HTTP server extension (Spec Section 13.7).
 //!
-//! Provides `/` dashboard and `/api/v1/*` JSON endpoints.
+//! Provides `/` dashboard, `/api/v1/*` JSON endpoints, and `/metrics` Prometheus endpoint.
 
 use std::sync::Arc;
 
@@ -115,6 +118,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/", get(dashboard))
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz))
+        .route("/metrics", get(get_prometheus_metrics))
         .merge(api_routes)
         .with_state(state)
 }
@@ -389,6 +393,132 @@ async fn get_metrics(State(state): State<AppState>) -> Json<serde_json::Value> {
             "config": { "poll_interval_ms": 0, "max_concurrent_agents": 0 }
         })),
     }
+}
+
+/// GET /metrics — Prometheus/OpenMetrics text format (S56 extension).
+///
+/// Exposed without auth so Prometheus can scrape without bearer tokens.
+/// For authenticated JSON metrics, use `/api/v1/metrics`.
+async fn get_prometheus_metrics(State(state): State<AppState>) -> Response {
+    let snapshot = state.orchestrator.lock().await;
+    let (input, output, total, seconds, running, retrying, claimed, completed, poll_ms, max_conc) =
+        match snapshot.as_ref() {
+            Some(s) => {
+                let now = chrono::Utc::now();
+                let active_seconds: f64 = s
+                    .running
+                    .values()
+                    .map(|e| now.signed_duration_since(e.started_at).num_seconds() as f64)
+                    .sum();
+                (
+                    s.codex_totals.input_tokens,
+                    s.codex_totals.output_tokens,
+                    s.codex_totals.total_tokens,
+                    s.codex_totals.seconds_running + active_seconds,
+                    s.running.len(),
+                    s.retry_attempts.len(),
+                    s.claimed.len(),
+                    s.completed.len(),
+                    s.poll_interval_ms,
+                    s.max_concurrent_agents,
+                )
+            }
+            None => (0, 0, 0, 0.0, 0, 0, 0, 0, 0, 0),
+        };
+
+    use std::fmt::Write;
+    let mut body = String::with_capacity(2048);
+
+    // Token counters
+    writeln!(
+        body,
+        "# HELP symphony_tokens_input_total Total input tokens consumed."
+    )
+    .unwrap();
+    writeln!(body, "# TYPE symphony_tokens_input_total counter").unwrap();
+    writeln!(body, "symphony_tokens_input_total {input}").unwrap();
+
+    writeln!(
+        body,
+        "# HELP symphony_tokens_output_total Total output tokens consumed."
+    )
+    .unwrap();
+    writeln!(body, "# TYPE symphony_tokens_output_total counter").unwrap();
+    writeln!(body, "symphony_tokens_output_total {output}").unwrap();
+
+    writeln!(
+        body,
+        "# HELP symphony_tokens_total Total tokens consumed (input + output)."
+    )
+    .unwrap();
+    writeln!(body, "# TYPE symphony_tokens_total counter").unwrap();
+    writeln!(body, "symphony_tokens_total {total}").unwrap();
+
+    // Runtime
+    writeln!(
+        body,
+        "# HELP symphony_agent_seconds_total Total agent runtime in seconds."
+    )
+    .unwrap();
+    writeln!(body, "# TYPE symphony_agent_seconds_total counter").unwrap();
+    writeln!(body, "symphony_agent_seconds_total {seconds:.3}").unwrap();
+
+    // Session gauges
+    writeln!(
+        body,
+        "# HELP symphony_sessions_running Current running agent sessions."
+    )
+    .unwrap();
+    writeln!(body, "# TYPE symphony_sessions_running gauge").unwrap();
+    writeln!(body, "symphony_sessions_running {running}").unwrap();
+
+    writeln!(
+        body,
+        "# HELP symphony_sessions_retrying Current sessions in retry queue."
+    )
+    .unwrap();
+    writeln!(body, "# TYPE symphony_sessions_retrying gauge").unwrap();
+    writeln!(body, "symphony_sessions_retrying {retrying}").unwrap();
+
+    writeln!(
+        body,
+        "# HELP symphony_issues_claimed Total issues currently claimed."
+    )
+    .unwrap();
+    writeln!(body, "# TYPE symphony_issues_claimed gauge").unwrap();
+    writeln!(body, "symphony_issues_claimed {claimed}").unwrap();
+
+    writeln!(
+        body,
+        "# HELP symphony_issues_completed Total issues completed."
+    )
+    .unwrap();
+    writeln!(body, "# TYPE symphony_issues_completed counter").unwrap();
+    writeln!(body, "symphony_issues_completed {completed}").unwrap();
+
+    // Config info
+    writeln!(
+        body,
+        "# HELP symphony_config_poll_interval_ms Configured poll interval in milliseconds."
+    )
+    .unwrap();
+    writeln!(body, "# TYPE symphony_config_poll_interval_ms gauge").unwrap();
+    writeln!(body, "symphony_config_poll_interval_ms {poll_ms}").unwrap();
+
+    writeln!(
+        body,
+        "# HELP symphony_config_max_concurrent_agents Configured max concurrent agent count."
+    )
+    .unwrap();
+    writeln!(body, "# TYPE symphony_config_max_concurrent_agents gauge").unwrap();
+    writeln!(body, "symphony_config_max_concurrent_agents {max_conc}").unwrap();
+
+    (
+        StatusCode::OK,
+        [("content-type", "text/plain; version=0.0.4; charset=utf-8")],
+        body,
+    )
+        .into_response()
 }
 
 /// GET /healthz — liveness probe (always 200).
@@ -781,6 +911,52 @@ mod tests {
         // healthz should work without token
         let req = Request::builder()
             .uri("/healthz")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn prometheus_metrics_returns_text() {
+        let state = make_app_state();
+        let app = build_router(state);
+        let req = Request::builder()
+            .uri("/metrics")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let ct = resp
+            .headers()
+            .get("content-type")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(ct.contains("text/plain"));
+
+        let body = axum::body::to_bytes(resp.into_body(), 1_000_000)
+            .await
+            .unwrap();
+        let text = std::str::from_utf8(&body).unwrap();
+        assert!(text.contains("symphony_tokens_total"));
+        assert!(text.contains("# TYPE symphony_sessions_running gauge"));
+        assert!(text.contains("symphony_issues_completed"));
+    }
+
+    #[tokio::test]
+    async fn prometheus_metrics_bypasses_auth() {
+        let state = AppState {
+            orchestrator: Arc::new(Mutex::new(Some(OrchestratorState::new(30000, 10)))),
+            refresh_tx: None,
+            shutdown_tx: None,
+            api_token: Some("secret-token".into()),
+        };
+        let app = build_router(state);
+        // /metrics should work without token
+        let req = Request::builder()
+            .uri("/metrics")
             .body(Body::empty())
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();

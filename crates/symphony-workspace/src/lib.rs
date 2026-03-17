@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Workspace management (Spec Section 9).
 //!
 //! Creates, reuses, and cleans per-issue workspace directories.

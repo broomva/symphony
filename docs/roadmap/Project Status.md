@@ -11,14 +11,14 @@ created: 2026-03-16
 
 # Project Status
 
-Last updated: 2026-03-16
+Last updated: 2026-03-17
 
 ## Summary
 
 | Metric | Value |
 |--------|-------|
-| **Phase** | Core complete (0-7), OSS prep in progress (8), Cloud in parallel (9) |
-| **Tests** | 165 passing + 5 opt-in integration |
+| **Phase** | Core complete (0-8), Cloud in parallel (9) |
+| **Tests** | 168 passing + 5 opt-in integration |
 | **Warnings** | 0 (clippy clean) |
 | **Gate** | `make smoke` PASS |
 | **Spec conformance** | 100% core + extensions |
@@ -38,7 +38,7 @@ Last updated: 2026-03-16
 | 6 | Observability | Done | 5 | 2026-03-06 |
 | 7 | Integration & CLI | Done | 4 | 2026-03-06 |
 | Ext | GraphQL tool + real tests | Done | 14+5i | 2026-03-06 |
-| 8 | Open Source Release | In Progress | 8+ | 2026-03-16 |
+| 8 | Open Source Release | Done | 10 | 2026-03-17 |
 | 9 | Symphony Cloud | In Progress | — | — |
 
 ## Resolved Gaps (Phase 8)
@@ -52,13 +52,13 @@ Last updated: 2026-03-16
 | CI/CD | GitHub Actions: check, test, multi-platform build, docker | 2026-03-16 |
 | Examples | 3 example workflows in `examples/` | 2026-03-16 |
 | License | Cargo.toml updated to Apache-2.0 | 2026-03-16 |
+| License headers | Apache 2.0 SPDX headers on all 35 `.rs` source files | 2026-03-17 |
+| Authentication | Bearer token auth via `SYMPHONY_API_TOKEN` (already existed) | 2026-03-17 |
+| Prometheus metrics | `GET /metrics` returns OpenMetrics text format (10 metrics) | 2026-03-17 |
 
 ## Remaining Gaps
 
-| Area | Description | Severity | See |
-|------|-------------|----------|-----|
-| Authentication | HTTP API is open (localhost-bound) | Medium | [[docs/roadmap/Production Roadmap\|Roadmap]] |
-| Metrics | No Prometheus `/metrics` | Medium | [[docs/roadmap/Production Roadmap\|Roadmap]] |
+No critical gaps remain. Phase 9 (Symphony Cloud) is the next milestone.
 
 ## Implementation Decisions
 

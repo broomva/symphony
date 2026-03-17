@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Agent runner protocol (Spec Section 10).
 //!
 //! Wraps workspace + prompt + app-server client.

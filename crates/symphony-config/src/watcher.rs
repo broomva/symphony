@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! File watcher for WORKFLOW.md dynamic reload (Spec Section 6.2).
 
 use std::path::PathBuf;

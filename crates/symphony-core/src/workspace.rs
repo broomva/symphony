@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Workspace types (Spec Section 4.1.4).
 
 use serde::{Deserialize, Serialize};

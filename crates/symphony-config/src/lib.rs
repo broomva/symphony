@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Symphony configuration layer (Spec Sections 5, 6, 12).
 //!
 //! Loads WORKFLOW.md, parses YAML front matter + prompt body,

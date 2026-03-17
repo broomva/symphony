@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Symphony - Coding agent orchestration service.
 //!
 //! A long-running daemon that polls an issue tracker (Linear),

@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Liquid template engine for prompt rendering (Spec Sections 5.4, 12).
 //!
 //! Renders the prompt template with issue data and attempt number.

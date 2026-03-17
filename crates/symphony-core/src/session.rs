@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Session and run attempt types (Spec Sections 4.1.5, 4.1.6, 4.1.7).
 
 use chrono::{DateTime, Utc};

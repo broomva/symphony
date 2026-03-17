@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! HTTP client for communicating with the Symphony daemon.
 //!
 //! Used by all online commands (status, stop, issues, refresh, etc.).

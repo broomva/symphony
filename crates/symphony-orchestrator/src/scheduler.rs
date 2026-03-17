@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Poll-and-dispatch scheduler (Spec Sections 8.1, 16.1-16.6).
 //!
 //! Owns the poll tick and coordinates dispatch, reconciliation, and retries.

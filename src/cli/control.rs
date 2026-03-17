@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Control commands — check, audit, test, validate (no daemon needed).
 
 use std::path::Path;

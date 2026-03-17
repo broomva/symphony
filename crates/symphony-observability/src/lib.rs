@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Observability layer (Spec Section 13).
 //!
 //! Structured logging, optional HTTP server with dashboard and JSON API.

@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Configuration types (Spec Sections 5.3, 6.4).
 
 use serde::{Deserialize, Serialize};

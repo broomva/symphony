@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Workflow loader (Spec Sections 5.1, 5.2).
 //!
 //! Reads WORKFLOW.md, parses YAML front matter and prompt body.

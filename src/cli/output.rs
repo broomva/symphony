@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Output formatting for CLI commands.
 //!
 //! Supports table (column-aligned) and JSON output modes.

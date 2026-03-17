@@ -14,8 +14,8 @@ created: 2026-03-06
 
 # STATE.md - Symphony Project State
 
-## Current Phase: ALL COMPLETE (Core + Extensions + Integration)
-## Next: [[PLANS|Phase 8]] (Open Source Release) + [[PLANS|Phase 9]] (Symphony Cloud)
+## Current Phase: ALL COMPLETE (Core 0-8 + Extensions + Integration)
+## Next: [[PLANS|Phase 9]] (Symphony Cloud)
 ## All Spec Conformance Items: COMPLETE — see [[.planning/REQUIREMENTS|Requirements]]
 
 ## Last Action
@@ -32,8 +32,8 @@ created: 2026-03-06
 - Extension: S17.8 — Real Linear integration tests (5 #[ignore] tests, skipped when LINEAR_API_KEY absent)
 
 ## Metrics
-- Tests: 138 passing + 5 ignored (opt-in real integration)
-- Crates: 7 + 1 root
+- Tests: 168 passing + 5 ignored (opt-in real integration)
+- Crates: 8 (7 library + 1 binary)
 - Gate: SMOKE PASS + RELEASE BUILD
 - All `make smoke`, `make check`, `make test`, `make build` passing
 - REQUIREMENTS.md: 100% checked
@@ -72,3 +72,4 @@ created: 2026-03-06
 | 6 | 2026-03-06 | 5 | 120 |
 | 7 | 2026-03-06 | 4 | 124 |
 | Ext | 2026-03-06 | 14+5i | 138+5i |
+| 8 | 2026-03-17 | 2 | 168+5i |

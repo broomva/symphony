@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! App-server JSON-RPC protocol messages (Spec Section 10.2).
 
 use serde::{Deserialize, Serialize};

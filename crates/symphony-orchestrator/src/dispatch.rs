@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Escobar-Valbuena
+// SPDX-License-Identifier: Apache-2.0
+
 //! Dispatch logic (Spec Section 8.2, 8.3).
 //!
 //! Candidate selection, sorting, eligibility checking, concurrency control.
