@@ -23,6 +23,9 @@ struct Cli {
 }
 
 fn main() -> anyhow::Result<()> {
+    // Load .env file if present (best-effort, missing file is fine)
+    let _ = dotenvy::dotenv();
+
     let cli = Cli::parse();
 
     // Check if explicit path exists (S17.7: nonexistent explicit path → error)

@@ -1,0 +1,12 @@
+Symphony
+Copyright 2026 Carlos Escobar-Valbuena
+
+This project implements the Symphony orchestration specification
+originally published by OpenAI under the Apache License 2.0.
+
+Original specification: https://github.com/openai/symphony
+Original license: Apache License 2.0
+
+This Rust implementation is an independent work derived from
+the publicly available specification. It is not affiliated with,
+endorsed by, or sponsored by OpenAI.
