@@ -14,10 +14,7 @@ pub async fn run_start(args: StartArgs, port_override: Option<u16>) -> anyhow::R
 
     // Check if explicit path exists (S17.7: nonexistent explicit path → error)
     if !workflow_path.exists() {
-        anyhow::bail!(
-            "workflow file not found: {}",
-            workflow_path.display()
-        );
+        anyhow::bail!("workflow file not found: {}", workflow_path.display());
     }
 
     tracing::info!(
@@ -58,14 +55,13 @@ pub async fn run_start(args: StartArgs, port_override: Option<u16>) -> anyhow::R
     });
 
     // Build tracker client
-    let tracker: Arc<dyn symphony_tracker::TrackerClient> = Arc::new(
-        symphony_tracker::linear::LinearClient::new(
+    let tracker: Arc<dyn symphony_tracker::TrackerClient> =
+        Arc::new(symphony_tracker::linear::LinearClient::new(
             config.tracker.endpoint.clone(),
             config.tracker.api_key.clone(),
             config.tracker.project_slug.clone(),
             config.tracker.active_states.clone(),
-        ),
-    );
+        ));
 
     // Build workspace manager
     let workspace_mgr = Arc::new(symphony_workspace::WorkspaceManager::new(
@@ -96,16 +92,17 @@ pub async fn run_start(args: StartArgs, port_override: Option<u16>) -> anyhow::R
             orchestrator: obs_state.clone(),
             refresh_tx: Some(refresh_tx),
             shutdown_tx: Some(Arc::new(shutdown_tx.clone())),
-            api_token: std::env::var("SYMPHONY_API_TOKEN").ok().filter(|s| !s.is_empty()),
+            api_token: std::env::var("SYMPHONY_API_TOKEN")
+                .ok()
+                .filter(|s| !s.is_empty()),
         };
         tokio::spawn(async move {
-            if let Err(e) =
-                symphony_observability::server::start_server_with_state(
-                    port,
-                    app_state,
-                    Some(server_shutdown_rx),
-                )
-                .await
+            if let Err(e) = symphony_observability::server::start_server_with_state(
+                port,
+                app_state,
+                Some(server_shutdown_rx),
+            )
+            .await
             {
                 tracing::error!(%e, "HTTP server failed");
             }
@@ -152,9 +149,8 @@ async fn shutdown_signal() {
 
     #[cfg(unix)]
     {
-        let mut sigterm =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                .expect("failed to register SIGTERM handler");
+        let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to register SIGTERM handler");
         tokio::select! {
             _ = ctrl_c => {},
             _ = sigterm.recv() => {},

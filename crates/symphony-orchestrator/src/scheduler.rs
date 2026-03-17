@@ -12,7 +12,7 @@ use symphony_core::state::RunningEntry;
 use symphony_core::{Issue, OrchestratorState, RetryEntry};
 use symphony_tracker::TrackerClient;
 use symphony_workspace::WorkspaceManager;
-use tokio::sync::{watch, Mutex};
+use tokio::sync::{Mutex, watch};
 
 use crate::dispatch::{is_dispatch_eligible, sort_for_dispatch};
 use crate::reconcile;
@@ -178,7 +178,10 @@ impl Scheduler {
                 tracing::info!("drain complete: all workers finished");
                 return;
             }
-            tracing::info!(running = running_count, "draining: waiting for in-flight workers");
+            tracing::info!(
+                running = running_count,
+                "draining: waiting for in-flight workers"
+            );
             self.publish_snapshot().await;
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         }
@@ -288,11 +291,8 @@ impl Scheduler {
                 state.codex_totals.total_tokens += entry.codex_total_tokens;
 
                 let attempt = entry.retry_attempt.unwrap_or(0) + 1;
-                let delay = reconcile::backoff_delay_ms(
-                    attempt,
-                    config.agent.max_retry_backoff_ms,
-                    false,
-                );
+                let delay =
+                    reconcile::backoff_delay_ms(attempt, config.agent.max_retry_backoff_ms, false);
                 state.retry_attempts.insert(
                     id.clone(),
                     RetryEntry {
@@ -400,12 +400,7 @@ impl Scheduler {
     }
 
     /// Dispatch a single issue: claim, create workspace, render prompt, spawn agent (S16.4).
-    async fn dispatch_and_run(
-        &self,
-        issue: Issue,
-        attempt: Option<u32>,
-        config: &ServiceConfig,
-    ) {
+    async fn dispatch_and_run(&self, issue: Issue, attempt: Option<u32>, config: &ServiceConfig) {
         let issue_id = issue.id.clone();
         let identifier = issue.identifier.clone();
 
@@ -448,14 +443,8 @@ impl Scheduler {
         let handle_id = issue_id.clone();
 
         let join_handle = tokio::spawn(async move {
-            let result = run_worker(
-                &issue,
-                attempt,
-                &config,
-                &workspace_mgr,
-                &prompt_template,
-            )
-            .await;
+            let result =
+                run_worker(&issue, attempt, &config, &workspace_mgr, &prompt_template).await;
 
             let normal_exit = result.is_ok();
 
@@ -519,16 +508,9 @@ impl Scheduler {
             {
                 Ok(issues) if !issues.is_empty() => {
                     let issue = &issues[0];
-                    if reconcile::is_active_state(
-                        &issue.state,
-                        &config.tracker.active_states,
-                    ) {
-                        self.dispatch_and_run(
-                            issue.clone(),
-                            Some(entry.attempt),
-                            config,
-                        )
-                        .await;
+                    if reconcile::is_active_state(&issue.state, &config.tracker.active_states) {
+                        self.dispatch_and_run(issue.clone(), Some(entry.attempt), config)
+                            .await;
                     } else {
                         tracing::info!(
                             issue_id = %issue_id,
@@ -573,8 +555,7 @@ impl Scheduler {
 /// Build a snapshot of the orchestrator state (S13.5).
 async fn build_snapshot(state: &Arc<Mutex<OrchestratorState>>) -> OrchestratorState {
     let state = state.lock().await;
-    let mut snapshot =
-        OrchestratorState::new(state.poll_interval_ms, state.max_concurrent_agents);
+    let mut snapshot = OrchestratorState::new(state.poll_interval_ms, state.max_concurrent_agents);
     snapshot.running = state.running.clone();
     snapshot.claimed = state.claimed.clone();
     snapshot.retry_attempts = state.retry_attempts.clone();
@@ -584,9 +565,7 @@ async fn build_snapshot(state: &Arc<Mutex<OrchestratorState>>) -> OrchestratorSt
 
     let now = Utc::now();
     for entry in snapshot.running.values() {
-        let elapsed = now
-            .signed_duration_since(entry.started_at)
-            .num_seconds() as f64;
+        let elapsed = now.signed_duration_since(entry.started_at).num_seconds() as f64;
         snapshot.codex_totals.seconds_running += elapsed;
     }
 
@@ -701,13 +680,9 @@ async fn handle_worker_exit(
         let delay = reconcile::backoff_delay_ms(1, config.agent.max_retry_backoff_ms, true);
         (1, delay)
     } else {
-        let prev_attempt = entry
-            .as_ref()
-            .and_then(|e| e.retry_attempt)
-            .unwrap_or(0);
+        let prev_attempt = entry.as_ref().and_then(|e| e.retry_attempt).unwrap_or(0);
         let attempt = prev_attempt + 1;
-        let delay =
-            reconcile::backoff_delay_ms(attempt, config.agent.max_retry_backoff_ms, false);
+        let delay = reconcile::backoff_delay_ms(attempt, config.agent.max_retry_backoff_ms, false);
         (attempt, delay)
     };
 

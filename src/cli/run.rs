@@ -11,10 +11,7 @@ pub async fn run_run(args: RunArgs) -> anyhow::Result<()> {
     let workflow_path = &args.workflow_path;
 
     if !workflow_path.exists() {
-        anyhow::bail!(
-            "workflow file not found: {}",
-            workflow_path.display()
-        );
+        anyhow::bail!("workflow file not found: {}", workflow_path.display());
     }
 
     // Load workflow
@@ -28,14 +25,13 @@ pub async fn run_run(args: RunArgs) -> anyhow::Result<()> {
     }
 
     // Build tracker client
-    let tracker: Arc<dyn symphony_tracker::TrackerClient> = Arc::new(
-        symphony_tracker::linear::LinearClient::new(
+    let tracker: Arc<dyn symphony_tracker::TrackerClient> =
+        Arc::new(symphony_tracker::linear::LinearClient::new(
             config.tracker.endpoint.clone(),
             config.tracker.api_key.clone(),
             config.tracker.project_slug.clone(),
             config.tracker.active_states.clone(),
-        ),
-    );
+        ));
 
     // Find the specific issue
     eprintln!("Fetching issue {}...", args.identifier);
@@ -65,30 +61,20 @@ pub async fn run_run(args: RunArgs) -> anyhow::Result<()> {
         }
     };
 
-    eprintln!(
-        "Running: {} — {}",
-        issue.identifier, issue.title
-    );
+    eprintln!("Running: {} — {}", issue.identifier, issue.title);
 
     // Build workspace manager
-    let workspace_mgr = symphony_workspace::WorkspaceManager::new(
-        config.workspace.clone(),
-        config.hooks.clone(),
-    );
+    let workspace_mgr =
+        symphony_workspace::WorkspaceManager::new(config.workspace.clone(), config.hooks.clone());
 
     // Ensure workspace root exists
     tokio::fs::create_dir_all(&config.workspace.root).await?;
 
     // Run the worker directly
     let prompt_template = Arc::new(Mutex::new(prompt_template));
-    let result = symphony_orchestrator::run_worker(
-        &issue,
-        None,
-        &config,
-        &workspace_mgr,
-        &prompt_template,
-    )
-    .await;
+    let result =
+        symphony_orchestrator::run_worker(&issue, None, &config, &workspace_mgr, &prompt_template)
+            .await;
 
     match result {
         Ok(()) => {

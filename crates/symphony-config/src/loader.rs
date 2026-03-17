@@ -5,10 +5,7 @@
 use std::path::Path;
 
 use crate::template::TemplateError;
-use crate::types::{
-    AgentConfig, CodexConfig, HooksConfig, ServiceConfig,
-    WorkflowDefinition,
-};
+use crate::types::{AgentConfig, CodexConfig, HooksConfig, ServiceConfig, WorkflowDefinition};
 
 /// Errors from loading a workflow file (Spec Section 5.5).
 #[derive(Debug, thiserror::Error)]
@@ -50,8 +47,8 @@ pub fn parse_workflow(content: &str) -> Result<WorkflowDefinition, LoadError> {
             let yaml_str = &after_first[..end_idx];
             let rest = &after_first[end_idx + 4..]; // skip \n---
 
-            let config: serde_yaml::Value = serde_yaml::from_str(yaml_str)
-                .map_err(|e| LoadError::ParseError(e.to_string()))?;
+            let config: serde_yaml::Value =
+                serde_yaml::from_str(yaml_str).map_err(|e| LoadError::ParseError(e.to_string()))?;
 
             // Front matter must be a map
             if !config.is_mapping() {
@@ -89,9 +86,10 @@ pub fn resolve_env(value: &str) -> String {
 /// Expand `~` to home directory in path strings.
 pub fn expand_path(value: &str) -> String {
     if let Some(rest) = value.strip_prefix('~')
-        && let Some(home) = dirs_path() {
-            return format!("{}{rest}", home);
-        }
+        && let Some(home) = dirs_path()
+    {
+        return format!("{}{rest}", home);
+    }
     value.to_string()
 }
 
@@ -132,17 +130,19 @@ pub fn extract_config(def: &WorkflowDefinition) -> ServiceConfig {
 
     // Polling
     if let Some(polling) = map.get(serde_yaml::Value::String("polling".into()))
-        && let Some(interval) = get_u64(polling, "interval_ms") {
-            config.polling.interval_ms = interval;
-        }
+        && let Some(interval) = get_u64(polling, "interval_ms")
+    {
+        config.polling.interval_ms = interval;
+    }
 
     // Workspace
     if let Some(ws) = map.get(serde_yaml::Value::String("workspace".into()))
-        && let Some(root) = get_str(ws, "root") {
-            let resolved = resolve_env(&root);
-            let expanded = expand_path(&resolved);
-            config.workspace.root = expanded.into();
-        }
+        && let Some(root) = get_str(ws, "root")
+    {
+        let resolved = resolve_env(&root);
+        let expanded = expand_path(&resolved);
+        config.workspace.root = expanded.into();
+    }
 
     // Hooks
     if let Some(hooks) = map.get(serde_yaml::Value::String("hooks".into())) {
@@ -161,9 +161,10 @@ pub fn extract_config(def: &WorkflowDefinition) -> ServiceConfig {
 
     // Server extension
     if let Some(server) = map.get(serde_yaml::Value::String("server".into()))
-        && let Some(port) = get_u64(server, "port") {
-            config.server_port = Some(port as u16);
-        }
+        && let Some(port) = get_u64(server, "port")
+    {
+        config.server_port = Some(port as u16);
+    }
 
     config
 }
@@ -183,9 +184,10 @@ fn extract_hooks(v: &serde_yaml::Value) -> HooksConfig {
         hooks.before_remove = Some(s);
     }
     if let Some(timeout) = get_u64(v, "timeout_ms")
-        && timeout > 0 {
-            hooks.timeout_ms = timeout;
-        }
+        && timeout > 0
+    {
+        hooks.timeout_ms = timeout;
+    }
     hooks
 }
 
@@ -201,20 +203,23 @@ fn extract_agent(v: &serde_yaml::Value) -> AgentConfig {
         agent.max_retry_backoff_ms = n;
     }
     // Per-state concurrency map
-    if let Some(by_state) = v
-        .as_mapping()
-        .and_then(|m| m.get(serde_yaml::Value::String("max_concurrent_agents_by_state".into())))
-        && let Some(mapping) = by_state.as_mapping() {
-            for (k, val) in mapping {
-                if let (Some(state_name), Some(limit)) = (k.as_str(), val.as_u64())
-                    && limit > 0 {
-                        let normalized = state_name.trim().to_lowercase();
-                        agent
-                            .max_concurrent_agents_by_state
-                            .insert(normalized, limit as u32);
-                    }
+    if let Some(by_state) = v.as_mapping().and_then(|m| {
+        m.get(serde_yaml::Value::String(
+            "max_concurrent_agents_by_state".into(),
+        ))
+    }) && let Some(mapping) = by_state.as_mapping()
+    {
+        for (k, val) in mapping {
+            if let (Some(state_name), Some(limit)) = (k.as_str(), val.as_u64())
+                && limit > 0
+            {
+                let normalized = state_name.trim().to_lowercase();
+                agent
+                    .max_concurrent_agents_by_state
+                    .insert(normalized, limit as u32);
             }
         }
+    }
     agent
 }
 
@@ -256,13 +261,19 @@ fn get_str(v: &serde_yaml::Value, key: &str) -> Option<String> {
 fn get_u64(v: &serde_yaml::Value, key: &str) -> Option<u64> {
     v.as_mapping()
         .and_then(|m| m.get(serde_yaml::Value::String(key.into())))
-        .and_then(|v| v.as_u64().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
+        .and_then(|v| {
+            v.as_u64()
+                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+        })
 }
 
 fn get_i64(v: &serde_yaml::Value, key: &str) -> Option<i64> {
     v.as_mapping()
         .and_then(|m| m.get(serde_yaml::Value::String(key.into())))
-        .and_then(|v| v.as_i64().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
+        .and_then(|v| {
+            v.as_i64()
+                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+        })
 }
 
 fn get_string_list(v: &serde_yaml::Value, key: &str) -> Option<Vec<String>> {
@@ -271,8 +282,15 @@ fn get_string_list(v: &serde_yaml::Value, key: &str) -> Option<Vec<String>> {
         .and_then(|m| m.get(serde_yaml::Value::String(key.into())))?;
 
     if let Some(seq) = val.as_sequence() {
-        Some(seq.iter().filter_map(|v| v.as_str().map(String::from)).collect())
-    } else { val.as_str().map(|s| s.split(',').map(|s| s.trim().to_string()).collect()) }
+        Some(
+            seq.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect(),
+        )
+    } else {
+        val.as_str()
+            .map(|s| s.split(',').map(|s| s.trim().to_string()).collect())
+    }
 }
 
 /// Validate the config is sufficient for dispatch (Spec Section 6.3).
@@ -468,9 +486,13 @@ Prompt body"#;
     #[test]
     fn env_var_resolution_expands() {
         // SAFETY: test-only, single-threaded test runner context
-        unsafe { std::env::set_var("SYMPHONY_TEST_KEY", "test-value"); }
+        unsafe {
+            std::env::set_var("SYMPHONY_TEST_KEY", "test-value");
+        }
         assert_eq!(resolve_env("$SYMPHONY_TEST_KEY"), "test-value");
-        unsafe { std::env::remove_var("SYMPHONY_TEST_KEY"); }
+        unsafe {
+            std::env::remove_var("SYMPHONY_TEST_KEY");
+        }
     }
 
     #[test]
@@ -523,7 +545,8 @@ Prompt body"#;
 
     #[test]
     fn per_state_map_ignores_non_positive() {
-        let content = "---\nagent:\n  max_concurrent_agents_by_state:\n    todo: 0\n    done: -1\n---\nbody";
+        let content =
+            "---\nagent:\n  max_concurrent_agents_by_state:\n    todo: 0\n    done: -1\n---\nbody";
         let def = parse_workflow(content).unwrap();
         let config = extract_config(&def);
         assert!(config.agent.max_concurrent_agents_by_state.is_empty());

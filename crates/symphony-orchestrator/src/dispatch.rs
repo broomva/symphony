@@ -190,7 +190,11 @@ mod tests {
         let active = vec!["Todo".into()];
         let terminal = vec!["Done".into()];
         assert!(is_dispatch_eligible(
-            &issue, &state, &terminal, &active, &HashMap::new()
+            &issue,
+            &state,
+            &terminal,
+            &active,
+            &HashMap::new()
         ));
     }
 

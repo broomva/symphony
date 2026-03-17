@@ -22,8 +22,12 @@ fn main() -> anyhow::Result<()> {
 
     // Commands that don't need the async runtime
     match &command {
-        Command::Validate(_) | Command::Config(_) | Command::Check | Command::Audit
-        | Command::Test(_) | Command::Logs(_) => {}
+        Command::Validate(_)
+        | Command::Config(_)
+        | Command::Check
+        | Command::Audit
+        | Command::Test(_)
+        | Command::Logs(_) => {}
         _ => {}
     }
 
@@ -59,25 +63,17 @@ async fn run_command(
         Command::Stop => cli::status::run_stop(&conn).await,
         Command::Status => cli::status::run_status(&conn, format).await,
         Command::Issues => cli::issues::run_issues(&conn, format).await,
-        Command::Issue(args) => {
-            cli::issues::run_issue(&args.identifier, &conn, format).await
-        }
+        Command::Issue(args) => cli::issues::run_issue(&args.identifier, &conn, format).await,
         Command::Refresh => cli::issues::run_refresh(&conn).await,
         Command::Workspaces => cli::workspaces::run_workspaces(&conn, format).await,
         Command::Workspace(args) => {
             cli::workspaces::run_workspace(&args.identifier, args.clean, &conn, format).await
         }
-        Command::Validate(args) => {
-            cli::control::run_validate(&args.workflow_path, format).await
-        }
-        Command::Config(args) => {
-            cli::config_cmd::run_config(&args.workflow_path, format).await
-        }
+        Command::Validate(args) => cli::control::run_validate(&args.workflow_path, format).await,
+        Command::Config(args) => cli::config_cmd::run_config(&args.workflow_path, format).await,
         Command::Check => cli::control::run_check().await,
         Command::Audit => cli::control::run_audit().await,
-        Command::Test(args) => {
-            cli::control::run_test(args.crate_name.as_deref()).await
-        }
+        Command::Test(args) => cli::control::run_test(args.crate_name.as_deref()).await,
         Command::Run(args) => {
             symphony_observability::init_logging();
             cli::run::run_run(args).await

@@ -108,10 +108,7 @@ impl AgentRunner {
     }
 
     /// Send a JSON-RPC message to the process stdin.
-    async fn send_message(
-        stdin: &mut ChildStdin,
-        msg: &ProtocolMessage,
-    ) -> Result<(), AgentError> {
+    async fn send_message(stdin: &mut ChildStdin, msg: &ProtocolMessage) -> Result<(), AgentError> {
         let json = serde_json::to_string(msg).map_err(|e| AgentError::Io(e.into()))?;
         stdin
             .write_all(json.as_bytes())
@@ -195,10 +192,10 @@ impl AgentRunner {
         });
         // Advertise optional client-side tools (S10.5)
         if let Some(tools) = advertised_tools {
-            thread_params.as_object_mut().unwrap().insert(
-                "tools".into(),
-                Value::Array(tools.clone()),
-            );
+            thread_params
+                .as_object_mut()
+                .unwrap()
+                .insert("tools".into(), Value::Array(tools.clone()));
         }
         let thread_start = ProtocolMessage::request(2, "thread/start", thread_params);
         Self::send_message(stdin, &thread_start).await?;
@@ -261,8 +258,8 @@ impl AgentRunner {
         linear_tool: &Option<LinearToolConfig>,
         on_event: &EventCallback,
     ) -> TurnOutcome {
-        let deadline = tokio::time::Instant::now()
-            + std::time::Duration::from_millis(turn_timeout_ms);
+        let deadline =
+            tokio::time::Instant::now() + std::time::Duration::from_millis(turn_timeout_ms);
 
         loop {
             let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
@@ -291,10 +288,8 @@ impl AgentRunner {
                                     .unwrap_or("")
                                     .to_string();
                                 let params = msg.get("params").cloned().unwrap_or(Value::Null);
-                                let tool_name = params
-                                    .get("name")
-                                    .and_then(|n| n.as_str())
-                                    .unwrap_or("");
+                                let tool_name =
+                                    params.get("name").and_then(|n| n.as_str()).unwrap_or("");
                                 let input = params.get("input").cloned().unwrap_or(Value::Null);
 
                                 let response = Self::handle_tool_call(
@@ -318,11 +313,7 @@ impl AgentRunner {
                                 continue;
                             }
 
-                            let outcome = Self::handle_message(
-                                &msg,
-                                session,
-                                on_event,
-                            );
+                            let outcome = Self::handle_message(&msg, session, on_event);
                             if let Some(outcome) = outcome {
                                 return outcome;
                             }
@@ -354,14 +345,13 @@ impl AgentRunner {
             if let Some(config) = linear_tool {
                 match symphony_tracker::graphql_tool::validate_input(input) {
                     Ok((query, variables)) => {
-                        let result =
-                            symphony_tracker::graphql_tool::execute_graphql_tool(
-                                &config.endpoint,
-                                &config.api_key,
-                                &query,
-                                variables,
-                            )
-                            .await;
+                        let result = symphony_tracker::graphql_tool::execute_graphql_tool(
+                            &config.endpoint,
+                            &config.api_key,
+                            &query,
+                            variables,
+                        )
+                        .await;
                         serde_json::json!({
                             "id": tool_call_id,
                             "result": result
@@ -640,9 +630,10 @@ impl AgentRunner {
         }
 
         // Build advertised tools list (S10.5)
-        let tools = self.linear_tool.as_ref().map(|_| {
-            vec![symphony_tracker::graphql_tool::tool_spec()]
-        });
+        let tools = self
+            .linear_tool
+            .as_ref()
+            .map(|_| vec![symphony_tracker::graphql_tool::tool_spec()]);
 
         // Perform handshake
         let mut session = Self::handshake(
@@ -712,8 +703,7 @@ impl AgentRunner {
                     .and_then(|t| t.as_str())
                 {
                     session.turn_id = new_turn_id.to_string();
-                    session.session_id =
-                        format!("{}-{}", session.thread_id, session.turn_id);
+                    session.session_id = format!("{}-{}", session.thread_id, session.turn_id);
                 }
             } else {
                 break;
@@ -762,19 +752,13 @@ mod tests {
             AgentError::CodexNotFound("codex".into()).to_string(),
             "codex_not_found: command 'codex' not found"
         );
-        assert_eq!(
-            AgentError::ResponseTimeout.to_string(),
-            "response_timeout"
-        );
+        assert_eq!(AgentError::ResponseTimeout.to_string(), "response_timeout");
         assert_eq!(AgentError::TurnTimeout.to_string(), "turn_timeout");
         assert_eq!(
             AgentError::ProcessExit.to_string(),
             "port_exit: process exited unexpectedly"
         );
-        assert_eq!(
-            AgentError::TurnCancelled.to_string(),
-            "turn_cancelled"
-        );
+        assert_eq!(AgentError::TurnCancelled.to_string(), "turn_cancelled");
         assert_eq!(
             AgentError::TurnInputRequired.to_string(),
             "turn_input_required"
@@ -786,7 +770,10 @@ mod tests {
         let runner = AgentRunner::new(CodexConfig::default());
         let err = runner.spawn_process(Path::new("/nonexistent/workspace"));
         assert!(err.is_err());
-        assert!(matches!(err.unwrap_err(), AgentError::InvalidWorkspaceCwd(_)));
+        assert!(matches!(
+            err.unwrap_err(),
+            AgentError::InvalidWorkspaceCwd(_)
+        ));
     }
 
     #[test]
@@ -844,7 +831,11 @@ mod tests {
             turn_id: "u".into(),
             session_id: "t-u".into(),
             turn_count: 1,
-            token_usage: TokenUsage { input_tokens: 100, output_tokens: 50, total_tokens: 150 },
+            token_usage: TokenUsage {
+                input_tokens: 100,
+                output_tokens: 50,
+                total_tokens: 150,
+            },
         };
         AgentRunner::extract_absolute_usage(&msg, &mut session);
         assert_eq!(session.token_usage.input_tokens, 500);

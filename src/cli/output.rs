@@ -67,7 +67,10 @@ pub fn print_kv(label: &str, value: &str) {
 
 /// Print a JSON value.
 pub fn print_json(value: &serde_json::Value) {
-    println!("{}", serde_json::to_string_pretty(value).unwrap_or_default());
+    println!(
+        "{}",
+        serde_json::to_string_pretty(value).unwrap_or_default()
+    );
 }
 
 #[cfg(test)]

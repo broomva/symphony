@@ -307,7 +307,9 @@ impl TrackerClient for LinearClient {
             "ids": issue_ids,
             "first": issue_ids.len(),
         });
-        let data = self.graphql_query(ISSUE_STATES_BY_IDS_QUERY, variables).await?;
+        let data = self
+            .graphql_query(ISSUE_STATES_BY_IDS_QUERY, variables)
+            .await?;
 
         let nodes = data
             .get("issues")
@@ -335,13 +337,13 @@ fn normalize_issue(v: &Value) -> Option<Issue> {
     let id = v.get("id")?.as_str()?.to_string();
     let identifier = v.get("identifier")?.as_str()?.to_string();
     let title = v.get("title")?.as_str()?.to_string();
-    let description = v.get("description").and_then(|d| d.as_str()).map(String::from);
+    let description = v
+        .get("description")
+        .and_then(|d| d.as_str())
+        .map(String::from);
 
     // Priority: integer only; non-integer becomes None (S11.3)
-    let priority = v
-        .get("priority")
-        .and_then(|p| p.as_i64())
-        .map(|p| p as i32);
+    let priority = v.get("priority").and_then(|p| p.as_i64()).map(|p| p as i32);
 
     let state = v
         .get("state")
@@ -415,10 +417,7 @@ fn normalize_issue_minimal(v: &Value) -> Option<Issue> {
         .unwrap_or("")
         .to_string();
 
-    let priority = v
-        .get("priority")
-        .and_then(|p| p.as_i64())
-        .map(|p| p as i32);
+    let priority = v.get("priority").and_then(|p| p.as_i64()).map(|p| p as i32);
 
     let created_at = v
         .get("createdAt")
@@ -456,10 +455,7 @@ fn extract_blockers(v: &Value) -> Vec<BlockerRef> {
         .and_then(|n| n.as_array())
     {
         for rel in inv_nodes {
-            let rel_type = rel
-                .get("type")
-                .and_then(|t| t.as_str())
-                .unwrap_or("");
+            let rel_type = rel.get("type").and_then(|t| t.as_str()).unwrap_or("");
             if rel_type == "blocks"
                 && let Some(issue) = rel.get("issue")
             {
@@ -640,7 +636,10 @@ mod tests {
             TrackerError::MissingApiKey,
             TrackerError::MissingProjectSlug,
             TrackerError::ApiRequest("x".into()),
-            TrackerError::ApiStatus { status: 401, body: "x".into() },
+            TrackerError::ApiStatus {
+                status: 401,
+                body: "x".into(),
+            },
             TrackerError::GraphqlErrors("x".into()),
             TrackerError::UnknownPayload("x".into()),
             TrackerError::MissingEndCursor,
@@ -679,8 +678,8 @@ mod tests {
     /// Helper to get Linear credentials from env, or skip.
     fn get_real_linear_config() -> Option<(String, String)> {
         let api_key = std::env::var("LINEAR_API_KEY").ok()?;
-        let project_slug = std::env::var("LINEAR_PROJECT_SLUG")
-            .unwrap_or_else(|_| "symphony-test".into());
+        let project_slug =
+            std::env::var("LINEAR_PROJECT_SLUG").unwrap_or_else(|_| "symphony-test".into());
         if api_key.is_empty() {
             return None;
         }
@@ -706,7 +705,10 @@ mod tests {
             .await
             .expect("real Linear API call should succeed");
 
-        assert!(data.get("viewer").is_some(), "viewer field should be present");
+        assert!(
+            data.get("viewer").is_some(),
+            "viewer field should be present"
+        );
         assert!(
             data["viewer"].get("id").is_some(),
             "viewer.id should be present"
@@ -735,7 +737,10 @@ mod tests {
         // Validate each issue has required fields
         for issue in &issues {
             assert!(!issue.id.is_empty(), "issue.id should not be empty");
-            assert!(!issue.identifier.is_empty(), "issue.identifier should not be empty");
+            assert!(
+                !issue.identifier.is_empty(),
+                "issue.identifier should not be empty"
+            );
             assert!(!issue.title.is_empty(), "issue.title should not be empty");
             assert!(!issue.state.is_empty(), "issue.state should not be empty");
         }

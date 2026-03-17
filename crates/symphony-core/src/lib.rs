@@ -10,6 +10,6 @@ pub mod state;
 pub mod workspace;
 
 pub use issue::{BlockerRef, Issue};
-pub use session::{LiveSession, RunAttempt, RunAttemptStatus, RetryEntry};
+pub use session::{LiveSession, RetryEntry, RunAttempt, RunAttemptStatus};
 pub use state::OrchestratorState;
 pub use workspace::Workspace;

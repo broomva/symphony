@@ -14,8 +14,7 @@ pub struct WorkflowDefinition {
 }
 
 /// Typed runtime values derived from WorkflowDefinition.config (Spec Section 4.1.3).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ServiceConfig {
     pub tracker: TrackerConfig,
     pub polling: PollingConfig,
@@ -147,4 +146,3 @@ impl Default for CodexConfig {
         }
     }
 }
-

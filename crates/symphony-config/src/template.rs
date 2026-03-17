@@ -3,8 +3,8 @@
 //! Renders the prompt template with issue data and attempt number.
 //! Uses strict mode: unknown variables and filters cause errors.
 
-use liquid::model::Value as LiquidValue;
 use liquid::Object;
+use liquid::model::Value as LiquidValue;
 use serde_json::Value as JsonValue;
 use symphony_core::Issue;
 
@@ -183,9 +183,7 @@ fn _json_to_liquid(val: &JsonValue) -> LiquidValue {
             }
         }
         JsonValue::String(s) => LiquidValue::scalar(s.clone()),
-        JsonValue::Array(arr) => {
-            LiquidValue::Array(arr.iter().map(_json_to_liquid).collect())
-        }
+        JsonValue::Array(arr) => LiquidValue::Array(arr.iter().map(_json_to_liquid).collect()),
         JsonValue::Object(map) => {
             let mut obj = Object::new();
             for (k, v) in map {
@@ -241,8 +239,7 @@ mod tests {
     #[test]
     fn render_labels_size() {
         let issue = make_test_issue();
-        let result =
-            render_prompt("Labels: {{ issue.labels | size }}", &issue, None).unwrap();
+        let result = render_prompt("Labels: {{ issue.labels | size }}", &issue, None).unwrap();
         assert_eq!(result, "Labels: 2");
     }
 

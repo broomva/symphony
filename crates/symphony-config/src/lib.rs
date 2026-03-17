@@ -10,7 +10,7 @@ pub mod types;
 pub mod watcher;
 
 pub use loader::load_workflow;
-pub use template::{render_prompt, TemplateError};
+pub use template::{TemplateError, render_prompt};
 pub use types::{
     AgentConfig, CodexConfig, HooksConfig, PollingConfig, ServiceConfig, TrackerConfig,
     WorkflowDefinition, WorkspaceConfig,

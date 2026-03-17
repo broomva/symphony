@@ -1,0 +1,16 @@
+#!/bin/sh
+# Symphony pre-commit hook — enforces the control harness before every commit.
+# Activate: git config core.hooksPath .githooks
+#
+# This runs `make smoke` (compile + clippy + test) and format check.
+# If any gate fails, the commit is blocked.
+
+set -e
+
+echo "=== pre-commit: make smoke (compile + clippy + test) ==="
+make smoke
+
+echo "=== pre-commit: format check ==="
+cargo fmt --all -- --check
+
+echo "=== pre-commit: PASS ==="

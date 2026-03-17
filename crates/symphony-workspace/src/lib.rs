@@ -141,12 +141,7 @@ impl WorkspaceManager {
     }
 
     /// Run the after_run hook with issue identifier and title. Failure is logged and ignored (S9.4).
-    pub async fn after_run_with_issue(
-        &self,
-        workspace_path: &Path,
-        identifier: &str,
-        title: &str,
-    ) {
+    pub async fn after_run_with_issue(&self, workspace_path: &Path, identifier: &str, title: &str) {
         if let Some(hook) = &self.hooks.after_run
             && let Err(e) = run_hook_with_env(
                 hook,
@@ -254,11 +249,8 @@ async fn run_hook_with_env(
         cmd.env(key, val);
     }
 
-    let result = tokio::time::timeout(
-        std::time::Duration::from_millis(timeout_ms),
-        cmd.output(),
-    )
-    .await;
+    let result =
+        tokio::time::timeout(std::time::Duration::from_millis(timeout_ms), cmd.output()).await;
 
     match result {
         Ok(Ok(output)) => {

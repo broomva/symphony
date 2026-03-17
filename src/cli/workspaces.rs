@@ -64,7 +64,9 @@ pub async fn run_workspace(
             std::process::exit(1);
         }
         println!("Workspace cleanup for '{identifier}' requested.");
-        println!("Note: Use the daemon's terminal cleanup or manually remove the workspace directory.");
+        println!(
+            "Note: Use the daemon's terminal cleanup or manually remove the workspace directory."
+        );
         return Ok(());
     }
 

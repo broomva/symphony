@@ -119,11 +119,7 @@ pub fn build_router(state: AppState) -> Router {
 }
 
 /// Bearer token auth middleware. Only enforced when `api_token` is configured.
-async fn auth_middleware(
-    State(state): State<AppState>,
-    request: Request,
-    next: Next,
-) -> Response {
+async fn auth_middleware(State(state): State<AppState>, request: Request, next: Next) -> Response {
     if let Some(expected) = &state.api_token {
         let auth_header = request
             .headers()
@@ -169,13 +165,12 @@ async fn dashboard(State(state): State<AppState>) -> Html<String> {
     let snapshot = state.orchestrator.lock().await;
 
     let (running_count, retrying_count, totals) = match snapshot.as_ref() {
-        Some(s) => (
-            s.running.len(),
-            s.retry_attempts.len(),
-            &s.codex_totals,
-        ),
+        Some(s) => (s.running.len(), s.retry_attempts.len(), &s.codex_totals),
         None => {
-            return Html("<html><body><h1>Symphony Dashboard</h1><p>Initializing...</p></body></html>".into());
+            return Html(
+                "<html><body><h1>Symphony Dashboard</h1><p>Initializing...</p></body></html>"
+                    .into(),
+            );
         }
     };
 
@@ -238,11 +233,7 @@ async fn get_issue(
 
     if let Some(s) = snapshot.as_ref() {
         // Search in running
-        if let Some(entry) = s
-            .running
-            .values()
-            .find(|r| r.identifier == identifier)
-        {
+        if let Some(entry) = s.running.values().find(|r| r.identifier == identifier) {
             return (
                 StatusCode::OK,
                 Json(serde_json::json!({
@@ -518,10 +509,7 @@ mod tests {
     async fn dashboard_returns_html() {
         let state = make_app_state();
         let app = build_router(state);
-        let req = Request::builder()
-            .uri("/")
-            .body(Body::empty())
-            .unwrap();
+        let req = Request::builder().uri("/").body(Body::empty()).unwrap();
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
@@ -537,7 +525,9 @@ mod tests {
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let body = axum::body::to_bytes(resp.into_body(), 1_000_000).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 1_000_000)
+            .await
+            .unwrap();
         let summary: StateSummary = serde_json::from_slice(&body).unwrap();
         assert_eq!(summary.counts.running, 0);
         assert_eq!(summary.counts.retrying, 0);
@@ -554,7 +544,9 @@ mod tests {
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let body = axum::body::to_bytes(resp.into_body(), 1_000_000).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 1_000_000)
+            .await
+            .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert!(json.get("error").is_some());
         assert_eq!(json["error"]["code"], "not_found");

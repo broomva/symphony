@@ -23,9 +23,10 @@ pub async fn watch_workflow(
             && matches!(
                 event.kind,
                 EventKind::Modify(_) | EventKind::Create(_) | EventKind::Remove(_)
-            ) {
-                let _ = notify_tx.blocking_send(());
-            }
+            )
+        {
+            let _ = notify_tx.blocking_send(());
+        }
     })?;
 
     watcher.watch(&path, RecursiveMode::NonRecursive)?;

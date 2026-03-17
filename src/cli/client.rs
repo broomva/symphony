@@ -73,10 +73,7 @@ impl SymphonyClient {
     }
 
     /// GET /api/v1/{identifier} — issue detail.
-    pub async fn get_issue(
-        &self,
-        identifier: &str,
-    ) -> Result<serde_json::Value, ClientError> {
+    pub async fn get_issue(&self, identifier: &str) -> Result<serde_json::Value, ClientError> {
         let resp = self
             .request(reqwest::Method::GET, &format!("/api/v1/{identifier}"))
             .send()
@@ -171,9 +168,11 @@ impl ClientError {
 
 /// Build a SymphonyClient from CLI options.
 pub fn build_client(host: Option<&str>, port: Option<u16>, token: Option<&str>) -> SymphonyClient {
-    let token = token
-        .map(String::from)
-        .or_else(|| std::env::var("SYMPHONY_API_TOKEN").ok().filter(|s| !s.is_empty()));
+    let token = token.map(String::from).or_else(|| {
+        std::env::var("SYMPHONY_API_TOKEN")
+            .ok()
+            .filter(|s| !s.is_empty())
+    });
 
     match host {
         Some(h) => {

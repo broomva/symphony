@@ -15,7 +15,7 @@ created: 2026-03-06
 
 ## Repository Purpose
 Symphony is a long-running orchestration service that polls an issue tracker (Linear),
-creates isolated per-issue workspaces, and runs coding agent sessions (Codex app-server)
+creates isolated per-issue workspaces, and runs coding agent sessions (Claude, Codex, etc.)
 for each issue. It is a scheduler/runner, not a workflow engine.
 
 ## Architecture
@@ -27,10 +27,10 @@ Rust workspace with layered crates matching the spec's abstraction levels:
 | `symphony-config` | Config + Policy (S5-6) | WORKFLOW.md loader, typed config, file watcher |
 | `symphony-tracker` | Integration (S11) | Linear GraphQL client, issue normalization |
 | `symphony-workspace` | Execution (S9) | Per-issue directory lifecycle, hooks, safety invariants |
-| `symphony-agent` | Execution (S10) | Codex app-server subprocess, JSON-RPC protocol |
-| `symphony-orchestrator` | Coordination (S7-8) | Poll loop, dispatch, reconciliation, retry queue |
-| `symphony-observability` | Observability (S13) | Structured logging, optional HTTP server + API |
-| `symphony` (root) | CLI (S17.7) | Binary entry point, CLI args, startup |
+| `symphony-agent` | Execution (S10) | Agent subprocess, JSON-RPC + simple pipe modes |
+| `symphony-orchestrator` | Coordination (S7-8) | Poll loop, dispatch, reconciliation, retry, drain |
+| `symphony-observability` | Observability (S13) | Structured logging, HTTP server, dashboard, health, auth |
+| `symphony-cli` (root) | CLI (S17.7) | Subcommands: start, stop, status, issues, validate, etc. |
 
 ## Key Design Decisions
 - **In-memory state**: Orchestrator state is intentionally in-memory; recovery is tracker-driven
@@ -38,13 +38,69 @@ Rust workspace with layered crates matching the spec's abstraction levels:
 - **Workspace isolation**: Coding agents run ONLY inside per-issue workspace directories
 - **Dynamic reload**: WORKFLOW.md changes are detected and re-applied without restart
 - **Liquid-compatible templates**: Strict variable/filter checking for prompt rendering
+- **Graceful shutdown**: SIGTERM/SIGINT → drain mode → wait for workers → exit
+- **Stall kill**: Worker abort handles tracked; stalled sessions killed + retried
+- **Bearer auth**: Optional `SYMPHONY_API_TOKEN` protects `/api/v1/*`; health endpoints open
+
+## Gathering Context from the Knowledge Graph
+
+This repo is an Obsidian vault. All `.md` files form a wikilinked knowledge graph.
+
+### How to orient before working:
+1. **Start at `docs/Symphony Index.md`** — it links to everything
+2. **Check `docs/roadmap/Project Status.md`** — current phase, test counts, known gaps
+3. **Read the relevant `docs/crates/<name>.md`** — for the crate you're modifying
+4. **Check `CONTROL.md`** — setpoints your changes must satisfy
+5. **Check `PLANS.md`** — task breakdown for the current phase
+6. **Traverse `[[wikilinks]]`** — follow links to find related context; the graph is designed for this
+
+### Vault map:
+```
+Root governance:  CLAUDE.md  AGENTS.md  PLANS.md  CONTROL.md  EXTENDING.md  CONTRIBUTING.md
+Docs index:       docs/Symphony Index.md
+Architecture:     docs/architecture/Crate Map.md, Domain Model.md
+Operations:       docs/operations/Control Harness.md, Configuration Reference.md
+Roadmap:          docs/roadmap/Project Status.md, Production Roadmap.md
+Per-crate:        docs/crates/symphony-core.md, symphony-config.md, ...
+Planning state:   .planning/STATE.md, .planning/REQUIREMENTS.md
+Examples:         examples/linear-claude.md, linear-codex.md, github-claude.md
+```
 
 ## Development Commands
 ```bash
-make smoke    # Compile + clippy + test (gate)
-make check    # Full check without tests
-make test     # Run all workspace tests
-make build    # Release build
+make smoke          # Compile + clippy + test (gate — runs in pre-commit hook)
+make check          # Compile + clippy only
+make test           # Run all workspace tests
+make build          # Release build
+make control-audit  # Smoke + format check (before PR)
+make fmt            # Auto-format code
+make install        # Install binary locally
+```
+
+## Control Harness
+
+The pre-commit hook at `.githooks/pre-commit` enforces the gate automatically. Activate:
+```bash
+git config core.hooksPath .githooks
+```
+
+### Before every commit (enforced by hook):
+- `cargo check --workspace` passes
+- `cargo clippy --workspace -- -D warnings` passes
+- `cargo test --workspace` passes
+- `cargo fmt --all -- --check` passes
+
+### Before every push (agent obligation):
+- Documentation updated per the rules in CLAUDE.md "Documentation Obligations"
+- `CONTROL.md` deviation log updated if any setpoint was relaxed
+- `docs/roadmap/Project Status.md` updated if changes are significant
+- `docs/operations/Control Harness.md` test counts updated if tests were added
+
+### The control loop:
+```
+Code change → make smoke (pre-commit) → tests pass → docs updated → push
+     ↑                                                                 |
+     └─── If smoke fails: fix before proceeding, never suppress ───────┘
 ```
 
 ## Agent Guidelines
@@ -54,25 +110,8 @@ make build    # Release build
 - Structured logging: always include `issue_id`, `issue_identifier`, `session_id` in logs
 - State normalization: always trim + lowercase when comparing issue states
 - Path safety: always validate workspace paths stay under workspace root
+- See `EXTENDING.md` for how to add new trackers or agent runners
 
-## Obsidian Vault & Documentation
+## Self-Reference
 
-This repository is an Obsidian vault (`.obsidian/` at root). All `.md` files form a knowledge graph navigable via wikilinks.
-
-### Vault Navigation
-- **Entry point**: `docs/Symphony Index.md` — links to all documentation
-- **Architecture**: `docs/architecture/` — system design, crate map, domain model
-- **Operations**: `docs/operations/` — control harness, configuration reference
-- **Roadmap**: `docs/roadmap/` — project status, production roadmap
-- **Crate docs**: `docs/crates/` — one note per crate with API, tests, spec coverage
-- **Planning**: `.planning/` — project state, requirements checklist, phase graph
-
-### Documentation Obligations
-When working on this project, agents MUST:
-1. **After adding a feature**: update the relevant `docs/crates/` note and `docs/roadmap/Project Status.md`
-2. **After adding config**: update `docs/operations/Configuration Reference.md`
-3. **After adding tests/setpoints**: update `CONTROL.md` and `docs/operations/Control Harness.md`
-4. **After completing a phase**: update `.planning/STATE.md`, `.planning/REQUIREMENTS.md`, and `docs/roadmap/Project Status.md`
-5. **Use wikilinks**: connect notes with `[[target]]` or `[[path/to/note|display text]]` syntax
-6. **Add frontmatter**: new docs notes should have `tags`, `created` date in YAML frontmatter
-7. **Keep graph connected**: every new note must link to at least one existing note
+`CLAUDE.md` and this file (`AGENTS.md`) define how agents interact with Symphony. They are loaded at the start of every Claude Code session. If you change conventions, control harness behavior, or documentation obligations — **update these files** so the next session inherits the knowledge. This is the meta-definition that keeps the control loop coherent across sessions.

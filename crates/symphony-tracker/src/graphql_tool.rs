@@ -149,7 +149,10 @@ pub async fn execute_graphql_tool(
 
     let status = response.status().as_u16();
     if !(200..300).contains(&status) {
-        let body_text = response.text().await.unwrap_or_else(|_| "<unreadable>".into());
+        let body_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "<unreadable>".into());
         return GraphqlToolResult {
             success: false,
             data: None,
@@ -292,9 +295,7 @@ mod tests {
 
     #[test]
     fn has_multiple_operations_detects_two() {
-        assert!(has_multiple_operations(
-            "query A { a } mutation B { b }"
-        ));
+        assert!(has_multiple_operations("query A { a } mutation B { b }"));
     }
 
     #[test]

@@ -188,11 +188,7 @@ pub struct ConnOpts {
 
 impl ConnOpts {
     pub fn client(&self) -> client::SymphonyClient {
-        client::build_client(
-            self.host.as_deref(),
-            self.port,
-            self.token.as_deref(),
-        )
+        client::build_client(self.host.as_deref(), self.port, self.token.as_deref())
     }
 
     /// Display label for error messages.

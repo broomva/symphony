@@ -66,15 +66,9 @@ pub async fn run_config(workflow_path: &Path, format: OutputFormat) -> anyhow::R
     println!();
 
     println!("[agent]");
-    println!(
-        "  max_concurrent: {}",
-        config.agent.max_concurrent_agents
-    );
+    println!("  max_concurrent: {}", config.agent.max_concurrent_agents);
     println!("  max_turns:      {}", config.agent.max_turns);
-    println!(
-        "  max_backoff_ms: {}",
-        config.agent.max_retry_backoff_ms
-    );
+    println!("  max_backoff_ms: {}", config.agent.max_retry_backoff_ms);
     if !config.agent.max_concurrent_agents_by_state.is_empty() {
         println!(
             "  by_state:       {:?}",
