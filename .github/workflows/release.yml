@@ -123,9 +123,9 @@ jobs:
             sleep 30
           done
           # Publish the root binary crate last
-          echo "Publishing symphony (binary)..."
-          cargo publish --no-verify || {
-            echo "Skipping symphony (may already be published)"
+          echo "Publishing symphony-cli (binary)..."
+          cargo publish -p symphony-cli --no-verify || {
+            echo "Skipping symphony-cli (may already be published)"
           }
 
   # Build and push Docker image

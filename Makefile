@@ -37,7 +37,7 @@ clean:
 # === INSTALL ===
 
 install:
-	cargo install --path .
+	cargo install --path . --bin symphony
 
 # === PUBLISH ===
 
@@ -50,7 +50,7 @@ publish-dry-run:
 	cargo publish -p symphony-agent --dry-run
 	cargo publish -p symphony-orchestrator --dry-run
 	cargo publish -p symphony-observability --dry-run
-	cargo publish --dry-run
+	cargo publish -p symphony-cli --dry-run
 	@echo "PUBLISH DRY-RUN PASS"
 
 # Publish all crates to crates.io in dependency order
@@ -69,7 +69,7 @@ publish: smoke
 	sleep 30
 	cargo publish -p symphony-observability
 	sleep 30
-	cargo publish
+	cargo publish -p symphony-cli
 	@echo "PUBLISH COMPLETE"
 
 # === CONTROL AUDIT ===
