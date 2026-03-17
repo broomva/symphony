@@ -91,7 +91,7 @@ pub fn expand_path(value: &str) -> String {
     if let Some(rest) = value.strip_prefix('~')
         && let Some(home) = dirs_path()
     {
-        return format!("{}{rest}", home);
+        return format!("{home}{rest}");
     }
     value.to_string()
 }
