@@ -185,10 +185,7 @@ pub fn run_init(args: &InitArgs) -> anyhow::Result<()> {
     let template = match args.tracker.as_str() {
         "linear" => LINEAR_TEMPLATE,
         "github" => GITHUB_TEMPLATE,
-        other => anyhow::bail!(
-            "unsupported tracker: '{}'. Use 'linear' or 'github'.",
-            other
-        ),
+        other => anyhow::bail!("unsupported tracker: '{other}'. Use 'linear' or 'github'."),
     };
 
     std::fs::write(output_path, template)?;

@@ -56,7 +56,7 @@ pub fn print_table(headers: &[&str], rows: &[Vec<String>], format: OutputFormat)
             .enumerate()
             .map(|(i, cell)| {
                 let width = widths.get(i).copied().unwrap_or(0);
-                format!("{:<width$}", cell, width = width)
+                format!("{cell:<width$}")
             })
             .collect();
         println!("{}", cells.join("  "));
@@ -65,7 +65,7 @@ pub fn print_table(headers: &[&str], rows: &[Vec<String>], format: OutputFormat)
 
 /// Print a single value with a label (key-value pair).
 pub fn print_kv(label: &str, value: &str) {
-    println!("  {:<20} {}", label, value);
+    println!("  {label:<20} {value}");
 }
 
 /// Print a JSON value.

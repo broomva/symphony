@@ -88,7 +88,7 @@ pub async fn run_workspace(
         println!("Workspace for: {identifier}");
         println!("{}", "-".repeat(40));
         for (key, value) in issue.as_object().into_iter().flatten() {
-            println!("  {:<20} {}", key, value);
+            println!("  {key:<20} {value}");
         }
     }
 
