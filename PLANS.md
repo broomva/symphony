@@ -507,7 +507,7 @@ Phases are ordered by dependency: each phase only depends on prior phases.
 
 ---
 
-## Phase 8: Open Source Release Preparation [MOSTLY DONE]
+## Phase 8: Open Source Release Preparation [DONE]
 **Depends on**: Phase 7
 **Gate**: Repository passes community-readiness checklist
 
@@ -549,14 +549,14 @@ Phases are ordered by dependency: each phase only depends on prior phases.
 - [x] `SYMPHONY_ISSUE_TITLE` env var in hooks for descriptive PRs
 - [x] Graceful shutdown via API, SIGINT/SIGTERM, drain mode
 
-**8.5 — Contributing Guide [PENDING]**
-- [ ] CONTRIBUTING.md: build/test/lint, plugin development
-- [ ] Issue templates
-- [ ] CODE_OF_CONDUCT.md
+**8.5 — Contributing Guide [DONE]**
+- [x] CONTRIBUTING.md: quick start, dev commands, code style, PR process
+- [x] Issue templates: bug_report.yml, feature_request.yml, tracker_plugin.yml
+- [x] CODE_OF_CONDUCT.md (Contributor Covenant)
 
-**8.6 — Plugin Architecture Documentation [PENDING]**
-- [ ] EXTENDING.md: tracker + agent runner plugin guide
-- [ ] WORKFLOW.md format reference
+**8.6 — Plugin Architecture Documentation [DONE]**
+- [x] EXTENDING.md: TrackerClient trait, Issue normalization, agent runner modes
+- [x] WORKFLOW.md extension points (custom config sections, $VAR resolution)
 
 ---
 

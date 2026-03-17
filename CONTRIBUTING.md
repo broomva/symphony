@@ -23,7 +23,7 @@ cd symphony
 make smoke    # compile + lint + test (~2 min)
 ```
 
-Requires Rust 1.85+ (edition 2024).
+Requires Rust 1.88+ (edition 2024).
 
 ## Development Commands
 
@@ -96,7 +96,7 @@ This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). Please be r
 
 ## See Also
 
-- [[EXTENDING]] — plugin architecture: adding trackers and agent runners
+- [[EXTENDING]] — plugin architecture: adding trackers, agent runners, config sections
 - [[docs/architecture/Crate Map|Crate Map]] — all crates with spec coverage
 - [[CONTROL]] — quality setpoints your code must satisfy
 - [[docs/operations/Configuration Reference|Configuration Reference]] — WORKFLOW.md format
