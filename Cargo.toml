@@ -11,7 +11,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "Apache-2.0"
 rust-version = "1.88"
@@ -57,13 +57,13 @@ tower = "0.5"
 tower-http = { version = "0.6", features = ["cors"] }
 
 # Internal crates (version required for crates.io publish)
-symphony-core = { path = "crates/symphony-core", version = "0.1.0" }
-symphony-config = { path = "crates/symphony-config", version = "0.1.0" }
-symphony-tracker = { path = "crates/symphony-tracker", version = "0.1.0" }
-symphony-workspace = { path = "crates/symphony-workspace", version = "0.1.0" }
-symphony-agent = { path = "crates/symphony-agent", version = "0.1.0" }
-symphony-orchestrator = { path = "crates/symphony-orchestrator", version = "0.1.0" }
-symphony-observability = { path = "crates/symphony-observability", version = "0.1.0" }
+symphony-core = { path = "crates/symphony-core", version = "0.2.0" }
+symphony-config = { path = "crates/symphony-config", version = "0.2.0" }
+symphony-tracker = { path = "crates/symphony-tracker", version = "0.2.0" }
+symphony-workspace = { path = "crates/symphony-workspace", version = "0.2.0" }
+symphony-agent = { path = "crates/symphony-agent", version = "0.2.0" }
+symphony-orchestrator = { path = "crates/symphony-orchestrator", version = "0.2.0" }
+symphony-observability = { path = "crates/symphony-observability", version = "0.2.0" }
 
 # The main binary (published as symphony-cli; installs the `symphony` command)
 [package]

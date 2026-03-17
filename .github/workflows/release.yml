@@ -71,20 +71,27 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.88"
+      - name: Install git-cliff
+        run: cargo install git-cliff --locked
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${GITHUB_REF_NAME}"
+          # Generate changelog for this release
+          git-cliff --latest --strip header > RELEASE_NOTES.md
           # Collect all binary artifacts
           mkdir -p release
           for dir in artifacts/*/; do
             cp "$dir"* release/ 2>/dev/null || true
           done
-          # Create GitHub release with binaries
+          # Create GitHub release with changelog body and binaries
           gh release create "$TAG" \
             --title "Symphony $TAG" \
-            --generate-notes \
+            --notes-file RELEASE_NOTES.md \
             release/*
 
   # Publish to crates.io (all workspace crates in dependency order)

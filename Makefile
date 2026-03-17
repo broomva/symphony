@@ -1,4 +1,4 @@
-.PHONY: smoke check test build clean clippy fmt publish publish-dry-run install
+.PHONY: smoke check test build clean clippy fmt publish publish-dry-run install changelog release
 
 # === GATES ===
 
@@ -71,6 +71,28 @@ publish: smoke
 	sleep 30
 	cargo publish -p symphony-cli
 	@echo "PUBLISH COMPLETE"
+
+# === RELEASE ===
+
+# Generate/update CHANGELOG.md from conventional commits
+changelog:
+	git-cliff --output CHANGELOG.md
+	@echo "CHANGELOG.md updated"
+
+# Release: bump version, generate changelog, commit, tag, push
+# Usage: make release VERSION=0.3.0
+release: smoke
+	@if [ -z "$(VERSION)" ]; then echo "Usage: make release VERSION=0.3.0"; exit 1; fi
+	@echo "Releasing v$(VERSION)..."
+	sed -i.bak 's/^version = ".*"/version = "$(VERSION)"/' Cargo.toml && rm -f Cargo.toml.bak
+	cargo check --workspace
+	git-cliff --tag "v$(VERSION)" --output CHANGELOG.md
+	git add Cargo.toml Cargo.lock CHANGELOG.md
+	git commit -m "chore(release): v$(VERSION)"
+	git tag "v$(VERSION)"
+	@echo ""
+	@echo "Release v$(VERSION) ready. Push with:"
+	@echo "  git push origin master v$(VERSION)"
 
 # === CONTROL AUDIT ===
 

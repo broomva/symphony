@@ -127,6 +127,16 @@ When Symphony (or any agent) works on an issue, the full cycle includes PR revie
 - PR body must include: Summary, Files Changed, Tests, Test Plan
 - Link the PR to the Linear issue via `gh` or Linear API
 
+## Versioning and Releases
+
+Symphony follows [Semantic Versioning](https://semver.org/) with [Conventional Commits](https://www.conventionalcommits.org/):
+
+- **Commit prefixes**: `feat:` (minor), `fix:` (patch), `feat!:` or `BREAKING CHANGE` (major), `docs:`, `chore:`, `test:`, `refactor:`
+- **Changelog**: Auto-generated from commits via `git-cliff` (config in `cliff.toml`)
+- **Release process**: `make release VERSION=0.3.0` → bumps Cargo.toml, generates CHANGELOG.md, commits, tags
+- **Push to release**: `git push origin master v0.3.0` → triggers CI/CD pipeline (binaries + crates.io + Docker)
+- **Version lives in**: `Cargo.toml` `[workspace.package] version` — all crates share it
+
 ## Safety Rules
 - Workspace paths MUST stay under workspace root (canonicalize + prefix check)
 - Coding agent cwd MUST equal the per-issue workspace path
