@@ -42,5 +42,5 @@ WORKDIR /app
 ENV SYMPHONY_BIND=0.0.0.0
 EXPOSE 8080
 
-ENTRYPOINT ["symphony"]
-CMD ["start", "--port", "8080", "WORKFLOW.md"]
+# Use shell form so $PORT is expanded at runtime
+CMD symphony start --port ${PORT:-8080} WORKFLOW.md
