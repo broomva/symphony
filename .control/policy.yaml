@@ -45,6 +45,9 @@ categories:
   - id: cli_integration
     name: CLI Integration
     setpoints: [S71, S72, S73, S74, S75, S76]
+  - id: pr_merge
+    name: PR Merge Automation
+    setpoints: [S77, S78, S79, S80]
 
 setpoints:
   # Build Quality
@@ -590,6 +593,35 @@ setpoints:
     category: cli_integration
     description: symphony run with missing workflow fails cleanly
     measurement: "Integration test: run_missing_workflow_fails"
+    spec: null
+    severity: blocking
+
+  # PR Merge Automation (S77-S80)
+  - id: S77
+    category: pr_merge
+    description: PR title must follow conventional commits format
+    measurement: "CI: pr-lint job regex check"
+    spec: null
+    severity: blocking
+
+  - id: S78
+    category: pr_merge
+    description: All 4 CI gates must pass before merge
+    measurement: "GitHub branch protection: required checks"
+    spec: null
+    severity: blocking
+
+  - id: S79
+    category: pr_merge
+    description: Auto-merge enabled when all gates green
+    measurement: "CI: auto-merge job enables squash merge"
+    spec: null
+    severity: blocking
+
+  - id: S80
+    category: pr_merge
+    description: "Governance files must exist (CLAUDE, AGENTS, CONTROL, PLANS, EXTENDING, CONTRIBUTING)"
+    measurement: "CI: control-audit job file check"
     spec: null
     severity: blocking
 
