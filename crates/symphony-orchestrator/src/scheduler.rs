@@ -899,4 +899,233 @@ Prompt body"#;
         let config = symphony_config::loader::extract_config(&def);
         assert!(config.tracker.done_state.is_none());
     }
+
+    // ── Integration: full dispatch cycle with mock tracker ──
+
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    /// Mock tracker for integration testing.
+    struct MockTracker {
+        issues: std::sync::Mutex<Vec<Issue>>,
+        fetch_count: AtomicU32,
+        state_set_calls: std::sync::Mutex<Vec<(String, String)>>,
+    }
+
+    impl MockTracker {
+        fn new(issues: Vec<Issue>) -> Self {
+            Self {
+                issues: std::sync::Mutex::new(issues),
+                fetch_count: AtomicU32::new(0),
+                state_set_calls: std::sync::Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl symphony_tracker::TrackerClient for MockTracker {
+        async fn fetch_candidate_issues(
+            &self,
+        ) -> Result<Vec<Issue>, symphony_tracker::TrackerError> {
+            self.fetch_count.fetch_add(1, Ordering::Relaxed);
+            Ok(self.issues.lock().unwrap().clone())
+        }
+
+        async fn fetch_issues_by_states(
+            &self,
+            states: &[String],
+        ) -> Result<Vec<Issue>, symphony_tracker::TrackerError> {
+            let issues = self.issues.lock().unwrap();
+            Ok(issues
+                .iter()
+                .filter(|i| states.iter().any(|s| s.eq_ignore_ascii_case(&i.state)))
+                .cloned()
+                .collect())
+        }
+
+        async fn fetch_issue_states_by_ids(
+            &self,
+            issue_ids: &[String],
+        ) -> Result<Vec<Issue>, symphony_tracker::TrackerError> {
+            let issues = self.issues.lock().unwrap();
+            Ok(issues
+                .iter()
+                .filter(|i| issue_ids.contains(&i.id))
+                .cloned()
+                .collect())
+        }
+
+        async fn set_issue_state(
+            &self,
+            issue_id: &str,
+            state: &str,
+        ) -> Result<(), symphony_tracker::TrackerError> {
+            self.state_set_calls
+                .lock()
+                .unwrap()
+                .push((issue_id.to_string(), state.to_string()));
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn mock_tracker_integration_candidate_fetch() {
+        let issues = vec![
+            make_issue("1", "T-1", Some(2), "Todo"),
+            make_issue("2", "T-2", Some(1), "In Progress"),
+            make_issue("3", "T-3", None, "Done"),
+        ];
+        let tracker = MockTracker::new(issues);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        let candidates = rt.block_on(tracker.fetch_candidate_issues()).unwrap();
+        assert_eq!(candidates.len(), 3);
+        assert_eq!(tracker.fetch_count.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn mock_tracker_integration_full_dispatch_cycle() {
+        // Simulate: 3 issues, concurrency=2, verify only 2 dispatched
+        let issues = vec![
+            make_issue("1", "T-1", Some(1), "Todo"),
+            make_issue("2", "T-2", Some(2), "Todo"),
+            make_issue("3", "T-3", Some(3), "Todo"),
+        ];
+
+        let state = OrchestratorState::new(30000, 2);
+        let mut config = make_config();
+        config.agent.max_concurrent_agents = 2;
+
+        let tracker = MockTracker::new(issues.clone());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        // Step 1: Fetch candidates
+        let mut candidates = rt.block_on(tracker.fetch_candidate_issues()).unwrap();
+        assert_eq!(candidates.len(), 3);
+
+        // Step 2: Select eligible candidates (respecting concurrency)
+        let selected = select_candidates_from(&mut candidates, &state, &config);
+        assert_eq!(selected.len(), 2);
+
+        // Step 3: Verify priority ordering (lower priority first)
+        assert_eq!(selected[0].identifier, "T-1"); // priority 1
+        assert_eq!(selected[1].identifier, "T-2"); // priority 2
+
+        // Step 4: Verify fetch was called
+        assert_eq!(tracker.fetch_count.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn mock_tracker_state_refresh_filters_correctly() {
+        let issues = vec![
+            make_issue("1", "T-1", Some(1), "Todo"),
+            make_issue("2", "T-2", Some(2), "Done"),
+        ];
+        let tracker = MockTracker::new(issues);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        // Refresh only issue "1"
+        let refreshed = rt
+            .block_on(tracker.fetch_issue_states_by_ids(&["1".to_string()]))
+            .unwrap();
+        assert_eq!(refreshed.len(), 1);
+        assert_eq!(refreshed[0].id, "1");
+    }
+
+    #[test]
+    fn mock_tracker_terminal_cleanup() {
+        let issues = vec![
+            make_issue("1", "T-1", Some(1), "Todo"),
+            make_issue("2", "T-2", Some(2), "Done"),
+            make_issue("3", "T-3", None, "Closed"),
+        ];
+        let tracker = MockTracker::new(issues);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        let terminal = rt
+            .block_on(tracker.fetch_issues_by_states(&["Done".to_string(), "Closed".to_string()]))
+            .unwrap();
+        assert_eq!(terminal.len(), 2);
+    }
+
+    #[test]
+    fn mock_tracker_done_state_transition() {
+        let tracker = MockTracker::new(vec![]);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        rt.block_on(tracker.set_issue_state("issue-1", "Done"))
+            .unwrap();
+        rt.block_on(tracker.set_issue_state("issue-2", "Closed"))
+            .unwrap();
+
+        let calls = tracker.state_set_calls.lock().unwrap();
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[0], ("issue-1".to_string(), "Done".to_string()));
+        assert_eq!(calls[1], ("issue-2".to_string(), "Closed".to_string()));
+    }
+
+    #[test]
+    fn dispatch_excludes_terminal_issues() {
+        let issues = vec![
+            make_issue("1", "T-1", Some(1), "Todo"),
+            make_issue("2", "T-2", Some(1), "Done"), // terminal
+            make_issue("3", "T-3", Some(1), "In Progress"),
+        ];
+        let state = OrchestratorState::new(30000, 10);
+        let config = make_config();
+
+        let mut candidates = issues;
+        let selected = select_candidates_from(&mut candidates, &state, &config);
+
+        // Only active state issues should be selected
+        assert_eq!(selected.len(), 2);
+        assert!(selected.iter().all(|i| i.state != "Done"));
+    }
+
+    #[test]
+    fn worker_exit_schedules_retry() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let state = Arc::new(Mutex::new(OrchestratorState::new(30000, 10)));
+        let config = make_config();
+
+        // Simulate a running entry
+        let issue = make_issue("1", "T-1", Some(1), "Todo");
+        rt.block_on(async {
+            let mut s = state.lock().await;
+            let entry = symphony_core::state::RunningEntry {
+                identifier: "T-1".into(),
+                issue: issue.clone(),
+                session_id: Some("session-1".into()),
+                codex_app_server_pid: None,
+                last_codex_message: None,
+                last_codex_event: None,
+                last_codex_timestamp: None,
+                codex_input_tokens: 100,
+                codex_output_tokens: 200,
+                codex_total_tokens: 300,
+                last_reported_input_tokens: 0,
+                last_reported_output_tokens: 0,
+                last_reported_total_tokens: 0,
+                retry_attempt: None,
+                started_at: Utc::now(),
+                turn_count: 1,
+            };
+            s.running.insert("1".to_string(), entry);
+            s.claimed.insert("1".to_string());
+        });
+
+        // Handle normal exit
+        rt.block_on(handle_worker_exit(&state, "1", true, &config));
+
+        rt.block_on(async {
+            let s = state.lock().await;
+            // Running entry removed
+            assert!(s.running.is_empty());
+            // Added to completed
+            assert!(s.completed.contains("1"));
+            // Retry scheduled
+            assert!(s.retry_attempts.contains_key("1"));
+            // Tokens accumulated
+            assert_eq!(s.codex_totals.total_tokens, 300);
+        });
+    }
 }
