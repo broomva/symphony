@@ -107,6 +107,22 @@ Code change → make smoke (pre-commit) → tests pass → docs updated → push
      └─── If smoke fails: fix before proceeding, never suppress ───────┘
 ```
 
+### Harness validation:
+- `make harness-audit` — validates governance files, hooks, CI, frontmatter, deviation log freshness
+- `make entropy-check` — reports `#[allow]` count, TODO/FIXME/HACK markers, doc staleness, test count drift
+
+## Consciousness Substrates
+
+The development process is grounded in three substrates that provide persistent context:
+
+| Substrate | Source | Content |
+|-----------|--------|---------|
+| Control Metalayer | `.control/policy.yaml`, `.control/state.json` | Behavioral governance: what MUST be true |
+| Knowledge Graph | `docs/`, `CLAUDE.md`, `AGENTS.md`, `.planning/` | Declarative memory: what IS known |
+| Episodic Memory | `docs/conversations/`, `~/.claude/projects/` | Episodic memory: what HAS happened |
+
+On each session start, orient by reading the control state, then the knowledge graph, then recent conversation history. See [[docs/control/Consciousness Architecture|Consciousness Architecture]] for the full design and [[docs/control/Session Protocol|Session Protocol]] for the actionable protocol.
+
 ## Control Metalayer — Development Grounding
 
 The control metalayer (`CONTROL.md`) is the **active grounding framework** for all agent work.

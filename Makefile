@@ -1,4 +1,4 @@
-.PHONY: smoke check test build clean clippy fmt publish publish-dry-run install changelog release
+.PHONY: smoke check test build clean clippy fmt publish publish-dry-run install changelog release harness-audit entropy-check control-refresh control-validate conversations eval-run eval-check eval-rollback
 
 # === GATES ===
 
@@ -98,3 +98,35 @@ release: smoke
 
 control-audit: smoke fmt-check
 	@echo "CONTROL AUDIT PASS"
+
+# === HARNESS ===
+
+harness-audit:
+	bash scripts/harness/audit_harness.sh
+
+entropy-check:
+	bash scripts/harness/entropy_check.sh
+
+# === CONTROL ===
+
+control-refresh:
+	bash scripts/control/refresh_state.sh
+
+control-validate:
+	bash scripts/control/validate_policy.sh
+
+# === MEMORY ===
+
+conversations:
+	python3 scripts/conversation-history.py
+
+# === EVALS ===
+
+eval-run:
+	bash evals/symphony-prompts/run_eval.sh
+
+eval-check:
+	bash evals/symphony-prompts/constraint-check.sh
+
+eval-rollback:
+	bash evals/symphony-prompts/rollback.sh

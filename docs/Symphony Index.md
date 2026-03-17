@@ -34,6 +34,7 @@ A Rust-based orchestration service that polls an issue tracker, creates isolated
 - [[CONTROL]] — Control metalayer: setpoints, sensors, actuators
 - [[docs/operations/Control Harness|Control Harness]] — Build gates, test coverage, audit commands
 - [[docs/operations/Configuration Reference|Configuration Reference]] — WORKFLOW.md format and all settings
+- [[docs/operations/Observability|Observability]] — Structured logging, HTTP endpoints, Prometheus metrics
 - [[WORKFLOW]] — Live workflow configuration for Stimulus project
 
 ### Planning
@@ -53,6 +54,17 @@ A Rust-based orchestration service that polls an issue tracker, creates isolated
 - [[docs/crates/symphony-agent|symphony-agent]] — Agent subprocess (S10)
 - [[docs/crates/symphony-orchestrator|symphony-orchestrator]] — Dispatch and scheduling (S7-8)
 - [[docs/crates/symphony-observability|symphony-observability]] — HTTP API and logging (S13)
+
+### Control & Consciousness
+- [[METALAYER]] — Machine-readable control loop definition
+- [[docs/control/Consciousness Architecture|Consciousness Architecture]] — Three-substrate agent consciousness design
+- [[docs/control/Session Protocol|Session Protocol]] — On-start/during/on-completion agent protocol
+
+### Memory & Conversations
+- [[docs/conversations/Conversations|Conversations]] — Session history index and episodic memory
+
+### Evaluation
+- [[evals/symphony-prompts/README|EGRI Prompt Evals]] — Evaluator-governed recursive improvement for prompt optimization
 
 ### Vault Meta
 - [[docs/Vault Conventions|Vault Conventions]] — Tag taxonomy, frontmatter standard, linking patterns

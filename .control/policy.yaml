@@ -1,0 +1,617 @@
+# Symphony Control Policy — Machine-readable setpoints from CONTROL.md
+# Generated: 2026-03-17
+# Source of truth: CONTROL.md (human-readable) — this file mirrors it for tooling.
+
+categories:
+  - id: build_quality
+    name: Build Quality
+    setpoints: [S1, S2, S3]
+  - id: domain_model
+    name: Domain Model (S4)
+    setpoints: [S4, S5, S6, S7]
+  - id: config_workflow
+    name: Config & Workflow (S5, S6)
+    setpoints: [S8, S9, S10, S11, S12, S13, S14, S15]
+  - id: dispatch_scheduling
+    name: Dispatch & Scheduling (S8)
+    setpoints: [S16, S17, S18, S19, S20, S21, S22]
+  - id: workspace_safety
+    name: Workspace Safety (S9, S15)
+    setpoints: [S23, S24, S25, S26, S27, S28]
+  - id: agent_runner
+    name: Agent Runner (S10)
+    setpoints: [S29, S30, S31, S32, S33]
+  - id: tracker
+    name: Tracker (S11)
+    setpoints: [S34, S35, S36, S37, S38]
+  - id: observability
+    name: Observability (S13)
+    setpoints: [S39, S40, S41, S42]
+  - id: service_hardness
+    name: Service Hardness
+    setpoints: [S43, S44, S45, S46, S47, S48, S49, S50]
+  - id: cli
+    name: CLI
+    setpoints: [S51, S52, S53, S54, S55, S56, S57, S58]
+  - id: pr_review
+    name: PR Review Loop
+    setpoints: [S59, S60, S61, S62]
+  - id: github_tracker
+    name: GitHub Tracker
+    setpoints: [S63, S64, S65, S66, S67, S68]
+  - id: done_state
+    name: Done State Transition
+    setpoints: [S69, S70]
+  - id: cli_integration
+    name: CLI Integration
+    setpoints: [S71, S72, S73, S74, S75, S76]
+
+setpoints:
+  # Build Quality
+  - id: S1
+    category: build_quality
+    description: Zero compile errors
+    measurement: "cargo check --workspace exit 0"
+    spec: null
+    severity: blocking
+
+  - id: S2
+    category: build_quality
+    description: Zero clippy warnings
+    measurement: "cargo clippy --workspace -- -D warnings exit 0"
+    spec: null
+    severity: blocking
+
+  - id: S3
+    category: build_quality
+    description: All tests pass
+    measurement: "cargo test --workspace exit 0"
+    spec: null
+    severity: blocking
+
+  # Domain Model (S4)
+  - id: S4
+    category: domain_model
+    description: Issue entity has all 12 fields
+    measurement: "Unit test: Issue struct construction"
+    spec: S4.1.1
+    severity: blocking
+
+  - id: S5
+    category: domain_model
+    description: "Workspace key sanitization: only [A-Za-z0-9._-]"
+    measurement: "Unit test: special chars → _"
+    spec: "S4.2, S9.5"
+    severity: blocking
+
+  - id: S6
+    category: domain_model
+    description: "State normalization: trim+lowercase before comparison"
+    measurement: 'Unit test: " Todo " == "todo"'
+    spec: S4.2
+    severity: blocking
+
+  - id: S7
+    category: domain_model
+    description: "Session ID = <thread_id>-<turn_id>"
+    measurement: "Unit test: composition"
+    spec: S4.2
+    severity: blocking
+
+  # Config & Workflow (S5, S6)
+  - id: S8
+    category: config_workflow
+    description: "Front matter parsed as map; non-map = error"
+    measurement: "Unit test: list YAML → FrontMatterNotMap"
+    spec: S5.2
+    severity: blocking
+
+  - id: S9
+    category: config_workflow
+    description: "Missing WORKFLOW.md = MissingFile error"
+    measurement: "Unit test: nonexistent path → error"
+    spec: S5.1
+    severity: blocking
+
+  - id: S10
+    category: config_workflow
+    description: "$VAR resolution expands env vars"
+    measurement: "Unit test: $TEST_KEY → value"
+    spec: S6.1
+    severity: blocking
+
+  - id: S11
+    category: config_workflow
+    description: "Empty $VAR = treated as missing"
+    measurement: "Unit test: unset var → empty string"
+    spec: S6.1
+    severity: blocking
+
+  - id: S12
+    category: config_workflow
+    description: "~ expanded to HOME in paths"
+    measurement: "Unit test: ~/foo → /home/user/foo"
+    spec: S6.1
+    severity: blocking
+
+  - id: S13
+    category: config_workflow
+    description: Unknown template variables fail rendering
+    measurement: "Unit test: {{ unknown }} → error"
+    spec: S5.4
+    severity: blocking
+
+  - id: S14
+    category: config_workflow
+    description: Dispatch validation catches missing tracker.kind
+    measurement: "Unit test: empty kind → error"
+    spec: S6.3
+    severity: blocking
+
+  - id: S15
+    category: config_workflow
+    description: Invalid reload keeps last good config
+    measurement: "Integration test: bad edit → no crash"
+    spec: S6.2
+    severity: blocking
+
+  # Dispatch & Scheduling (S8)
+  - id: S16
+    category: dispatch_scheduling
+    description: "Todo + non-terminal blocker = ineligible"
+    measurement: "Unit test: blocked todo → false"
+    spec: S8.2
+    severity: blocking
+
+  - id: S17
+    category: dispatch_scheduling
+    description: "Todo + all terminal blockers = eligible"
+    measurement: "Unit test: unblocked todo → true"
+    spec: S8.2
+    severity: blocking
+
+  - id: S18
+    category: dispatch_scheduling
+    description: "Sort: priority ASC, null last"
+    measurement: "Unit test: [3,1,null] → [1,3,null]"
+    spec: S8.2
+    severity: blocking
+
+  - id: S19
+    category: dispatch_scheduling
+    description: "Continuation retry = 1000ms fixed"
+    measurement: "Unit test: backoff(n, max, true) = 1000"
+    spec: S8.4
+    severity: blocking
+
+  - id: S20
+    category: dispatch_scheduling
+    description: "Failure retry = min(10000*2^(n-1), max)"
+    measurement: "Unit test: attempt=3 → 40000"
+    spec: S8.4
+    severity: blocking
+
+  - id: S21
+    category: dispatch_scheduling
+    description: Backoff capped at max_retry_backoff_ms
+    measurement: "Unit test: attempt=10 → 300000"
+    spec: S8.4
+    severity: blocking
+
+  - id: S22
+    category: dispatch_scheduling
+    description: Reconciliation runs BEFORE dispatch each tick
+    measurement: "Integration test: tick ordering"
+    spec: S8.1
+    severity: blocking
+
+  # Workspace Safety (S9, S15)
+  - id: S23
+    category: workspace_safety
+    description: Workspace path must be under workspace root
+    measurement: "Unit test: outside root → error"
+    spec: S9.5
+    severity: blocking
+
+  - id: S24
+    category: workspace_safety
+    description: Agent cwd must equal workspace path
+    measurement: Validation before launch
+    spec: S9.5
+    severity: blocking
+
+  - id: S25
+    category: workspace_safety
+    description: after_create failure removes partial workspace
+    measurement: "Unit test: hook fail → dir cleaned"
+    spec: S9.4
+    severity: blocking
+
+  - id: S26
+    category: workspace_safety
+    description: before_run failure aborts run attempt
+    measurement: "Unit test: hook fail → error returned"
+    spec: S9.4
+    severity: blocking
+
+  - id: S27
+    category: workspace_safety
+    description: after_run failure is logged and ignored
+    measurement: "Unit test: hook fail → no error propagated"
+    spec: S9.4
+    severity: blocking
+
+  - id: S28
+    category: workspace_safety
+    description: Hook timeout enforced
+    measurement: "Unit test: slow hook → HookTimeout"
+    spec: S9.4
+    severity: blocking
+
+  # Agent Runner (S10)
+  - id: S29
+    category: agent_runner
+    description: Handshake sends 4 messages in order
+    measurement: "Unit test: message sequence"
+    spec: S10.2
+    severity: blocking
+
+  - id: S30
+    category: agent_runner
+    description: Stderr not parsed as protocol JSON
+    measurement: "Unit test: stderr line → no parse"
+    spec: S10.3
+    severity: blocking
+
+  - id: S31
+    category: agent_runner
+    description: "User input request = hard failure"
+    measurement: "Unit test: input signal → immediate error"
+    spec: S10.5
+    severity: blocking
+
+  - id: S32
+    category: agent_runner
+    description: "Unsupported tool call → failure result, session continues"
+    measurement: Unit test
+    spec: S10.5
+    severity: blocking
+
+  - id: S33
+    category: agent_runner
+    description: Read/turn/stall timeouts enforced
+    measurement: "Unit test: timeout → specific error"
+    spec: S10.6
+    severity: blocking
+
+  # Tracker (S11)
+  - id: S34
+    category: tracker
+    description: Linear query uses slugId filter
+    measurement: "Unit/integration test: query shape"
+    spec: S11.2
+    severity: blocking
+
+  - id: S35
+    category: tracker
+    description: "Issue state refresh uses [ID!] type"
+    measurement: "Unit test: query variable typing"
+    spec: S11.2
+    severity: blocking
+
+  - id: S36
+    category: tracker
+    description: Labels normalized to lowercase
+    measurement: 'Unit test: "BUG" → "bug"'
+    spec: S11.3
+    severity: blocking
+
+  - id: S37
+    category: tracker
+    description: Blockers from inverse "blocks" relation
+    measurement: "Unit test: relation parsing"
+    spec: S11.3
+    severity: blocking
+
+  - id: S38
+    category: tracker
+    description: "Empty ID list → no API call"
+    measurement: "Unit test: empty → immediate return"
+    spec: S11.1
+    severity: blocking
+
+  # Observability (S13)
+  - id: S39
+    category: observability
+    description: Issue logs include issue_id + issue_identifier
+    measurement: Log inspection
+    spec: S13.1
+    severity: informational
+
+  - id: S40
+    category: observability
+    description: Session logs include session_id
+    measurement: Log inspection
+    spec: S13.1
+    severity: informational
+
+  - id: S41
+    category: observability
+    description: "Token totals use absolute values, not deltas"
+    measurement: "Unit test: accumulation logic"
+    spec: S13.5
+    severity: blocking
+
+  - id: S42
+    category: observability
+    description: Sink failure does not crash orchestrator
+    measurement: "Unit test: broken sink → continued"
+    spec: S13.2
+    severity: blocking
+
+  # Service Hardness (S43-S50)
+  - id: S43
+    category: service_hardness
+    description: "/healthz returns 200 always (liveness)"
+    measurement: "Unit test: healthz_returns_200"
+    spec: S13.7
+    severity: blocking
+
+  - id: S44
+    category: service_hardness
+    description: "/readyz returns 200 when initialized, 503 otherwise"
+    measurement: "Unit test: readyz tests"
+    spec: S13.7
+    severity: blocking
+
+  - id: S45
+    category: service_hardness
+    description: symphony stop triggers graceful shutdown
+    measurement: "Integration test: POST /api/v1/shutdown"
+    spec: null
+    severity: blocking
+
+  - id: S46
+    category: service_hardness
+    description: "Bare symphony starts daemon (backward compat)"
+    measurement: "Unit test: None command → Start"
+    spec: null
+    severity: blocking
+
+  - id: S47
+    category: service_hardness
+    description: Stalled sessions are killed and retried
+    measurement: "Unit test: stall detection + abort handle"
+    spec: S8.5
+    severity: blocking
+
+  - id: S48
+    category: service_hardness
+    description: SIGTERM/SIGINT triggers clean shutdown with drain
+    measurement: "Integration test: signal → drain → stop"
+    spec: null
+    severity: blocking
+
+  - id: S49
+    category: service_hardness
+    description: Graceful drain waits for in-flight workers
+    measurement: "Code review: drain loop in scheduler"
+    spec: null
+    severity: informational
+
+  - id: S50
+    category: service_hardness
+    description: Worker abort handles tracked and cleaned up
+    measurement: "Code review: cleanup_worker_handles"
+    spec: null
+    severity: informational
+
+  # CLI (S51-S58)
+  - id: S51
+    category: cli
+    description: "symphony run STI-123 executes single issue without daemon"
+    measurement: "Unit test: run command parses"
+    spec: null
+    severity: blocking
+
+  - id: S52
+    category: cli
+    description: "--concurrency overrides config max_concurrent_agents"
+    measurement: "Unit test: CLI override applied"
+    spec: null
+    severity: blocking
+
+  - id: S53
+    category: cli
+    description: "--tickets STI-1,STI-2 filters dispatch to named issues"
+    measurement: "Scheduler: ticket filter applied"
+    spec: null
+    severity: blocking
+
+  - id: S54
+    category: cli
+    description: "--once runs single poll cycle then exits"
+    measurement: "Scheduler: once mode breaks loop"
+    spec: null
+    severity: blocking
+
+  - id: S55
+    category: cli
+    description: "--host + --token enable remote daemon access"
+    measurement: "Client: build_client with URL + bearer"
+    spec: null
+    severity: blocking
+
+  - id: S56
+    category: cli
+    description: "GET /api/v1/metrics returns usage data for metering"
+    measurement: "Unit test: endpoint returns JSON"
+    spec: null
+    severity: blocking
+
+  - id: S57
+    category: cli
+    description: "GET /metrics returns Prometheus text format"
+    measurement: "Unit test: prometheus_metrics_returns_text"
+    spec: null
+    severity: blocking
+
+  - id: S58
+    category: cli
+    description: "/metrics endpoint bypasses auth"
+    measurement: "Unit test: prometheus_metrics_bypasses_auth"
+    spec: null
+    severity: blocking
+
+  # PR Review Loop (S59-S62)
+  - id: S59
+    category: pr_review
+    description: pr_feedback hook config parsed from WORKFLOW.md
+    measurement: "Unit test: config extraction"
+    spec: S5.3.4 ext
+    severity: blocking
+
+  - id: S60
+    category: pr_review
+    description: pr_feedback hook runs after after_run between turns
+    measurement: "Unit test: hook execution order"
+    spec: S9.4 ext
+    severity: blocking
+
+  - id: S61
+    category: pr_review
+    description: pr_feedback output captured and available as next-turn context
+    measurement: "Unit test: feedback piped to turn"
+    spec: S7.1 ext
+    severity: blocking
+
+  - id: S62
+    category: pr_review
+    description: "pr_feedback failure is logged and ignored (non-fatal)"
+    measurement: "Unit test: hook fail → no error"
+    spec: S9.4 ext
+    severity: blocking
+
+  # GitHub Tracker (S63-S68)
+  - id: S63
+    category: github_tracker
+    description: "tracker.kind: github accepted by config validation"
+    measurement: "Unit test: validate_config_passes_with_github_kind"
+    spec: S6.3
+    severity: blocking
+
+  - id: S64
+    category: github_tracker
+    description: GitHub issues normalized to Symphony Issue type
+    measurement: "Unit test: normalize_github_issue"
+    spec: S11.3
+    severity: blocking
+
+  - id: S65
+    category: github_tracker
+    description: Pull requests filtered from GitHub issues response
+    measurement: "Unit test: normalize_filters_pull_requests"
+    spec: null
+    severity: blocking
+
+  - id: S66
+    category: github_tracker
+    description: "project_slug parsed as owner/repo"
+    measurement: "Unit test: parse_owner_repo_valid"
+    spec: null
+    severity: blocking
+
+  - id: S67
+    category: github_tracker
+    description: Label-based state mapping for active states
+    measurement: "Unit test: state_from_labels_matches_active"
+    spec: null
+    severity: blocking
+
+  - id: S68
+    category: github_tracker
+    description: "create_tracker() factory dispatches on kind"
+    measurement: "Code: start.rs + run.rs use factory"
+    spec: S11.1
+    severity: blocking
+
+  # Done State Transition (S69-S70)
+  - id: S69
+    category: done_state
+    description: done_state transition called on normal worker exit
+    measurement: "Code: dispatch_and_run calls set_issue_state after normal exit"
+    spec: S8.4 ext
+    severity: blocking
+
+  - id: S70
+    category: done_state
+    description: "set_issue_state failure is logged but doesn't block retry scheduling"
+    measurement: "Code: error logged with warn, handle_worker_exit still called"
+    spec: S8.4 ext
+    severity: informational
+
+  # CLI Integration (S71-S76)
+  - id: S71
+    category: cli_integration
+    description: symphony init generates valid WORKFLOW.md for both tracker types
+    measurement: "Integration test: init_then_validate_roundtrip"
+    spec: null
+    severity: blocking
+
+  - id: S72
+    category: cli_integration
+    description: symphony init refuses overwrite without --force
+    measurement: "Integration test: init_refuses_overwrite"
+    spec: null
+    severity: blocking
+
+  - id: S73
+    category: cli_integration
+    description: symphony validate catches missing API key
+    measurement: "Integration test: validate_missing_api_key"
+    spec: S6.3
+    severity: blocking
+
+  - id: S74
+    category: cli_integration
+    description: symphony config displays pr_feedback hook
+    measurement: "Integration test: config_shows_resolved"
+    spec: null
+    severity: blocking
+
+  - id: S75
+    category: cli_integration
+    description: Remote daemon access without token fails gracefully
+    measurement: "Integration test: remote_without_token_fails"
+    spec: null
+    severity: blocking
+
+  - id: S76
+    category: cli_integration
+    description: symphony run with missing workflow fails cleanly
+    measurement: "Integration test: run_missing_workflow_fails"
+    spec: null
+    severity: blocking
+
+controller_policy:
+  always:
+    - "Run `make smoke` before committing"
+    - "Add tests that verify spec behavior for new code"
+    - "Reference spec section in test names or comments"
+  on_smoke_fail:
+    - "Fix errors before proceeding"
+    - "Do NOT skip or suppress warnings"
+    - "Do NOT add #[allow] without documenting justification"
+  on_state_mutation:
+    - "Verify single-authority mutation (no concurrent writes)"
+    - "Add test for idempotency if relevant"
+  on_spec_ambiguity:
+    - "Document in .planning/research/<topic>.md"
+    - "Implement conservative interpretation"
+    - "Add test capturing expected behavior"
+    - 'Note the decision in PLANS.md "Implementation-Defined Decisions"'
+  on_phase_complete:
+    - "Update STATE.md with test counts"
+    - "Update REQUIREMENTS.md checklist"
+    - "Run full `make control-audit`"
+    - "Verify all phase setpoints are green"

@@ -1,0 +1,297 @@
+#!/usr/bin/env python3
+"""
+Conversation History Bridge — transforms Claude Code session logs into Obsidian-compatible markdown.
+
+Sources (graceful skip if absent):
+  - ~/.claude/projects/*/conversations/*.jsonl
+  - .entire/logs/entire.log
+
+Output:
+  - docs/conversations/<session-id>.md per session
+  - docs/conversations/Conversations.md (index MOC, updated idempotently)
+
+Filtering:
+  - Skips <task-notification>, <system-reminder>, toolUseResult messages
+  - Skips messages shorter than 5 characters
+"""
+
+import json
+import re
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent.parent
+CONVERSATIONS_DIR = ROOT / "docs" / "conversations"
+INDEX_FILE = CONVERSATIONS_DIR / "Conversations.md"
+
+# Noise patterns to skip
+NOISE_PATTERNS = [
+    r"<task-notification>",
+    r"<system-reminder>",
+    r"toolUseResult",
+]
+
+MIN_MESSAGE_LENGTH = 5
+
+
+def is_noise(text: str) -> bool:
+    """Check if a message is noise that should be filtered out."""
+    if len(text.strip()) < MIN_MESSAGE_LENGTH:
+        return True
+    for pattern in NOISE_PATTERNS:
+        if re.search(pattern, text):
+            return True
+    return False
+
+
+def extract_text(content) -> str:
+    """Extract text content from a message's content field."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                parts.append(item.get("text", ""))
+        return "\n".join(parts)
+    return ""
+
+
+def process_jsonl_file(filepath: Path) -> list[dict]:
+    """Process a single .jsonl conversation file into message dicts."""
+    messages = []
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                role = entry.get("role", "")
+                content = extract_text(entry.get("content", ""))
+
+                if not content or is_noise(content):
+                    continue
+
+                messages.append({
+                    "role": role,
+                    "content": content[:2000],  # Truncate very long messages
+                    "timestamp": entry.get("timestamp", ""),
+                })
+    except (OSError, PermissionError):
+        pass
+    return messages
+
+
+def session_id_from_path(filepath: Path) -> str:
+    """Generate a session ID from a conversation file path."""
+    stem = filepath.stem
+    # Use filename as session ID (typically a UUID or timestamp)
+    return stem
+
+
+def generate_session_markdown(session_id: str, messages: list[dict], source: str) -> str:
+    """Generate Obsidian-formatted markdown for a session."""
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    first_ts = messages[0].get("timestamp", "") if messages else ""
+
+    # Try to extract a date from the first timestamp
+    session_date = now
+    if first_ts:
+        try:
+            dt = datetime.fromisoformat(first_ts.replace("Z", "+00:00"))
+            session_date = dt.strftime("%Y-%m-%d")
+        except (ValueError, TypeError):
+            pass
+
+    lines = [
+        "---",
+        "tags:",
+        "  - symphony",
+        "  - conversations",
+        "  - memory",
+        "type: reference",
+        "status: active",
+        "area: memory",
+        f"created: {session_date}",
+        f"source: {source}",
+        f"session_id: {session_id}",
+        "---",
+        "",
+        f"# Session: {session_id[:24]}",
+        "",
+        f"**Date**: {session_date}",
+        f"**Messages**: {len(messages)}",
+        f"**Source**: `{source}`",
+        "",
+        "## Conversation",
+        "",
+    ]
+
+    for msg in messages:
+        role = msg["role"].capitalize()
+        content = msg["content"]
+        lines.append(f"### {role}")
+        lines.append("")
+        lines.append(content)
+        lines.append("")
+
+    lines.extend([
+        "## See Also",
+        "",
+        "- [[docs/conversations/Conversations|Conversations]] — Session index",
+        "- [[CLAUDE]] — Agent conventions",
+        "- [[METALAYER]] — Control metalayer",
+    ])
+
+    return "\n".join(lines)
+
+
+def generate_index(sessions: list[dict]) -> str:
+    """Generate the Conversations.md MOC index."""
+    lines = [
+        "---",
+        "tags:",
+        "  - symphony",
+        "  - conversations",
+        "  - memory",
+        "type: moc",
+        "status: active",
+        "area: memory",
+        "aliases:",
+        "  - Conversations",
+        "  - Session History",
+        "created: 2026-03-17",
+        "---",
+        "",
+        "# Conversations",
+        "",
+        "Session history index — generated by `scripts/conversation-history.py`.",
+        "",
+        "> [!info] Bridge",
+        "> This index is auto-generated. Run `make conversations` or `python3 scripts/conversation-history.py` to update.",
+        "",
+        "## Sessions",
+        "",
+        "| Date | Session | Messages | Source |",
+        "|------|---------|----------|--------|",
+    ]
+
+    for session in sorted(sessions, key=lambda s: s.get("date", ""), reverse=True):
+        sid = session["id"]
+        date = session.get("date", "unknown")
+        count = session.get("count", 0)
+        source = session.get("source", "unknown")
+        display = sid[:24]
+        lines.append(f"| {date} | [[docs/conversations/{sid}|{display}]] | {count} | {source} |")
+
+    if not sessions:
+        lines.append("| — | No sessions captured yet | — | — |")
+
+    lines.extend([
+        "",
+        "## See Also",
+        "",
+        "- [[CLAUDE]] — Agent conventions",
+        "- [[METALAYER]] — Control metalayer reference",
+        "- [[docs/Symphony Index|Symphony Index]] — Vault navigation hub",
+    ])
+
+    return "\n".join(lines)
+
+
+def main():
+    CONVERSATIONS_DIR.mkdir(parents=True, exist_ok=True)
+
+    sessions = []
+    existing_sessions = {p.stem for p in CONVERSATIONS_DIR.glob("*.md") if p.stem != "Conversations"}
+
+    # Source 1: Claude Code conversation logs
+    claude_base = Path.home() / ".claude" / "projects"
+    if claude_base.exists():
+        for jsonl_file in sorted(claude_base.glob("*/conversations/*.jsonl")):
+            session_id = session_id_from_path(jsonl_file)
+            if session_id in existing_sessions:
+                continue  # Idempotent: skip already-processed sessions
+
+            messages = process_jsonl_file(jsonl_file)
+            if not messages:
+                continue
+
+            md_content = generate_session_markdown(session_id, messages, "claude-code")
+            output_file = CONVERSATIONS_DIR / f"{session_id}.md"
+            output_file.write_text(md_content, encoding="utf-8")
+
+            first_ts = messages[0].get("timestamp", "")
+            session_date = ""
+            if first_ts:
+                try:
+                    dt = datetime.fromisoformat(first_ts.replace("Z", "+00:00"))
+                    session_date = dt.strftime("%Y-%m-%d")
+                except (ValueError, TypeError):
+                    session_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+            sessions.append({
+                "id": session_id,
+                "date": session_date or datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                "count": len(messages),
+                "source": "claude-code",
+            })
+            existing_sessions.add(session_id)
+
+    # Source 2: .entire logs (graceful skip)
+    entire_log = ROOT / ".entire" / "logs" / "entire.log"
+    if entire_log.exists():
+        try:
+            messages = process_jsonl_file(entire_log)
+            if messages:
+                session_id = "entire-log"
+                if session_id not in existing_sessions:
+                    md_content = generate_session_markdown(session_id, messages, "entire")
+                    output_file = CONVERSATIONS_DIR / f"{session_id}.md"
+                    output_file.write_text(md_content, encoding="utf-8")
+                    sessions.append({
+                        "id": session_id,
+                        "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                        "count": len(messages),
+                        "source": "entire",
+                    })
+        except Exception:
+            pass  # Graceful degradation
+
+    # Also include existing sessions in the index
+    for existing_md in CONVERSATIONS_DIR.glob("*.md"):
+        if existing_md.stem == "Conversations":
+            continue
+        sid = existing_md.stem
+        if any(s["id"] == sid for s in sessions):
+            continue
+        # Read basic info from existing file
+        try:
+            content = existing_md.read_text(encoding="utf-8")
+            date_match = re.search(r"created: (\d{4}-\d{2}-\d{2})", content)
+            count_match = re.search(r"\*\*Messages\*\*: (\d+)", content)
+            source_match = re.search(r"source: (.+)", content)
+            sessions.append({
+                "id": sid,
+                "date": date_match.group(1) if date_match else "unknown",
+                "count": int(count_match.group(1)) if count_match else 0,
+                "source": source_match.group(1) if source_match else "unknown",
+            })
+        except Exception:
+            pass
+
+    # Write index
+    index_content = generate_index(sessions)
+    INDEX_FILE.write_text(index_content, encoding="utf-8")
+
+    print(f"Conversation bridge complete: {len(sessions)} sessions indexed")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,70 @@
+# EGRI Problem Specification — Symphony Prompt Optimization
+# Evaluator-Governed Recursive Improvement for stimulus-workflow.md
+#
+# This file defines the optimization problem: what to improve, how to measure,
+# what's immutable, and what constraints apply.
+
+objective:
+  name: issue_resolution_rate
+  description: >
+    Maximize the rate at which Symphony agents successfully resolve Linear issues
+    on the first attempt, as measured by the orchestrator's state API.
+  metric: completed / (completed + failed + retrying)
+  direction: maximize
+
+mutable_artifact:
+  file: stimulus-workflow.md
+  section: prompt_body  # Everything after the YAML front matter separator
+  description: >
+    The prompt template that gets rendered and sent to the coding agent.
+    Variables like {{ issue.identifier }}, {{ issue.title }}, {{ issue.description }}
+    are Liquid templates rendered at dispatch time.
+
+immutable:
+  - stimulus-workflow.md front matter (YAML configuration above the ---)
+  - All Rust source code (crates/, src/, tests/)
+  - CONTROL.md setpoints
+  - .control/ policy files
+  - Makefile gates
+
+evaluator:
+  script: evals/symphony-prompts/evaluator.sh
+  endpoint: "http://localhost:8080/api/v1/state"
+  description: >
+    Queries the Symphony HTTP API for orchestrator state. Extracts completed,
+    failed, and retrying counts. Computes resolution rate as a 0.0-1.0 score.
+  requires: Symphony running locally on port 8080
+
+constraints:
+  script: evals/symphony-prompts/constraint-check.sh
+  rules:
+    - "make smoke must pass"
+    - "stimulus-workflow.md must have valid YAML front matter"
+    - "Prompt must include {{ issue.identifier }} and {{ issue.title }}"
+    - "Prompt must include control metalayer instructions"
+
+budget:
+  max_iterations: 10
+  max_cost_usd: 50
+  max_time_hours: 2
+  description: >
+    Conservative budget for initial runs. Each iteration modifies the prompt,
+    runs constraint checks, and evaluates via the API. Human review required
+    before promotion.
+
+autonomy:
+  level: sandbox
+  description: >
+    Human review required before promoting any mutation to the active workflow.
+    Agent may mutate, evaluate, and log — but not deploy without approval.
+
+baseline:
+  file: evals/symphony-prompts/baseline/stimulus-workflow.md
+  description: >
+    Snapshot of the current stimulus-workflow.md at the time EGRI was scaffolded.
+    Used for rollback and comparison.
+
+ledger:
+  file: evals/symphony-prompts/ledger.jsonl
+  format: jsonl
+  fields: [iteration, timestamp, score, constraint_pass, mutation_summary, promoted]

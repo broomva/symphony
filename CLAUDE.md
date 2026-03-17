@@ -107,6 +107,48 @@ Before starting any feature or fix:
 
 The metalayer ensures **stability across agent sessions** — every agent reads the same setpoints and produces verifiably correct output.
 
+### Machine-Readable Control
+
+The `.control/` directory provides machine-readable representations of the control metalayer:
+- `.control/policy.yaml` — all 76 setpoints as structured YAML
+- `.control/commands.yaml` — Makefile targets typed as gates/sensors/actuators
+- `.control/topology.yaml` — crate ownership map with dependencies
+- `.control/state.json` — live metric snapshot (regenerate with `make control-refresh`)
+
+Run `make control-validate` to verify policy.yaml stays in sync with CONTROL.md. See [[METALAYER]] for the full control loop definition.
+
+## Agent Consciousness Protocol
+
+Symphony's development is grounded in three consciousness substrates that provide persistent, self-improving context:
+
+1. **Control Metalayer** — `.control/`, [[CONTROL]], [[METALAYER]] — behavioral governance (what MUST be true)
+2. **Knowledge Graph** — `docs/`, [[docs/Symphony Index|Symphony Index]] — declarative memory (what IS known)
+3. **Episodic Memory** — `docs/conversations/`, `scripts/conversation-history.py` — episodic memory (what HAS happened)
+
+### Session Protocol
+
+**On Start:**
+1. Read this file + [[AGENTS]] for conventions
+2. Read `.control/state.json` for current metrics
+3. Read [[CONTROL]] for relevant setpoints
+4. Check [[PLANS]] for current phase
+5. Check [[docs/roadmap/Project Status|Project Status]] for progress
+6. Scan [[docs/conversations/Conversations|Conversations]] for recent session context
+
+**Before Changes:**
+1. Identify affected setpoints in [[CONTROL]]
+2. Read relevant `docs/crates/<name>.md`
+3. Run `make smoke` to confirm clean baseline
+
+**On Completion:**
+1. Run `make smoke` — verify all gates pass
+2. Run `make control-validate` — ensure policy alignment
+3. Update docs (CONTROL, state.json, Project Status) as needed
+4. Run `make control-refresh` — update state snapshot
+5. Commit with conventional commit format
+
+See [[docs/control/Consciousness Architecture|Consciousness Architecture]] for the full three-substrate design and [[docs/control/Session Protocol|Session Protocol]] for the detailed protocol.
+
 ## PR Review Loop
 
 When Symphony (or any agent) works on an issue, the full cycle includes PR review handling:

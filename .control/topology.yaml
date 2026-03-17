@@ -1,0 +1,82 @@
+# Symphony Crate Topology — ownership map and dependency graph
+# Generated: 2026-03-17
+
+crates:
+  - name: symphony-core
+    path: crates/symphony-core
+    spec_layer: "Domain Model (S4)"
+    responsibility: "Shared types: Issue, State, Session, Workspace"
+    dependencies: []
+    test_count: 16
+    status: complete
+
+  - name: symphony-config
+    path: crates/symphony-config
+    spec_layer: "Config + Policy (S5-6)"
+    responsibility: "WORKFLOW.md loader, typed config, file watcher"
+    dependencies: [symphony-core]
+    test_count: 37
+    status: complete
+
+  - name: symphony-tracker
+    path: crates/symphony-tracker
+    spec_layer: "Integration (S11)"
+    responsibility: "Linear/GitHub client, issue normalization"
+    dependencies: [symphony-core]
+    test_count: 15
+    status: complete
+
+  - name: symphony-workspace
+    path: crates/symphony-workspace
+    spec_layer: "Execution (S9)"
+    responsibility: "Per-issue directory lifecycle, hooks, safety invariants"
+    dependencies: [symphony-core, symphony-config]
+    test_count: 38
+    status: complete
+
+  - name: symphony-agent
+    path: crates/symphony-agent
+    spec_layer: "Execution (S10)"
+    responsibility: "Agent subprocess, JSON-RPC + simple pipe modes"
+    dependencies: [symphony-core]
+    test_count: 4
+    status: complete
+
+  - name: symphony-orchestrator
+    path: crates/symphony-orchestrator
+    spec_layer: "Coordination (S7-8)"
+    responsibility: "Poll loop, dispatch, reconciliation, retry, drain"
+    dependencies: [symphony-core, symphony-config, symphony-tracker, symphony-workspace, symphony-agent]
+    test_count: 17
+    status: complete
+
+  - name: symphony-observability
+    path: crates/symphony-observability
+    spec_layer: "Observability (S13)"
+    responsibility: "Structured logging, HTTP server, dashboard, health, auth"
+    dependencies: [symphony-core, symphony-orchestrator]
+    test_count: 32
+    status: complete
+
+  - name: symphony-cli
+    path: "."
+    spec_layer: "CLI (S17.7)"
+    responsibility: "Subcommands: start, stop, status, issues, validate, etc."
+    dependencies: [all]
+    test_count: 42
+    status: complete
+
+dependency_graph: |
+  symphony-core
+    ├── symphony-config
+    │     └── symphony-workspace
+    ├── symphony-tracker
+    ├── symphony-agent
+    ├── symphony-orchestrator
+    │     ├── symphony-config
+    │     ├── symphony-tracker
+    │     ├── symphony-workspace
+    │     └── symphony-agent
+    └── symphony-observability
+          ├── symphony-core
+          └── symphony-orchestrator

@@ -1,0 +1,45 @@
+# Control Metrics — metric definitions for Symphony's control loop
+# These define what is measured, how, and what thresholds trigger alerts.
+
+metrics:
+  - name: test_count
+    description: Total number of passing tests
+    sensor: "cargo test --workspace 2>&1 | grep 'test result:' | awk '{sum += $4} END {print sum}'"
+    type: gauge
+    threshold:
+      min: 222
+      direction: increasing
+    alert: "Test count decreased — tests may have been removed or broken"
+
+  - name: clippy_warnings
+    description: Number of clippy warnings
+    sensor: "cargo clippy --workspace -- -D warnings 2>&1 | grep -c 'warning\\[' || echo 0"
+    type: gauge
+    threshold:
+      max: 0
+    alert: "Clippy warnings detected — must be zero for smoke gate"
+
+  - name: compile_errors
+    description: Number of compile errors
+    sensor: "cargo check --workspace 2>&1 | grep -c '^error' || echo 0"
+    type: gauge
+    threshold:
+      max: 0
+    alert: "Compile errors detected — must be zero for smoke gate"
+
+  - name: setpoint_count
+    description: Total number of defined setpoints
+    sensor: "grep -c '^\\s*- id: S' .control/policy.yaml"
+    type: gauge
+    threshold:
+      min: 76
+      direction: increasing
+    alert: "Setpoint count decreased — setpoints may have been removed"
+
+  - name: deviation_count
+    description: Number of active deviations in CONTROL.md
+    sensor: "grep -c '^|' CONTROL.md | tail -1"
+    type: gauge
+    threshold:
+      max: 10
+    alert: "Too many active deviations — review and resolve"

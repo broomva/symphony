@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "generated_at": "2026-03-17T00:00:00Z",
+  "tests": {
+    "passing": 222,
+    "ignored": 5,
+    "total": 227
+  },
+  "setpoints": {
+    "total": 76,
+    "blocking": 70,
+    "informational": 6
+  },
+  "gates": {
+    "smoke": "pass",
+    "control_audit": "pass"
+  },
+  "phases": {
+    "0_scaffold": "complete",
+    "1_config": "complete",
+    "2_tracker": "complete",
+    "3_workspace": "complete",
+    "4_orchestrator": "complete",
+    "5_agent": "complete",
+    "6_observability": "complete",
+    "7_integration": "complete",
+    "8_oss": "complete",
+    "9_cloud": "planned"
+  },
+  "crates": 8,
+  "rust_lines_approx": 6100
+}

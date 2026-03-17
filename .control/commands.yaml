@@ -1,0 +1,79 @@
+# Symphony Commands — Makefile targets as typed commands
+# Generated: 2026-03-17
+
+gates:
+  - name: smoke
+    command: make smoke
+    description: "Primary gate: compile + clippy + test"
+    frequency: before_commit
+    blocking: true
+
+  - name: control-audit
+    command: make control-audit
+    description: "Full audit: smoke + format check"
+    frequency: before_pr
+    blocking: true
+
+sensors:
+  - name: check
+    command: make check
+    description: "Compile + clippy only"
+    output: exit_code
+
+  - name: test
+    command: make test
+    description: "Run all workspace tests"
+    output: exit_code_and_summary
+
+  - name: fmt-check
+    command: make fmt-check
+    description: "Verify code formatting"
+    output: exit_code
+
+  - name: harness-audit
+    command: make harness-audit
+    description: "Validate harness practices"
+    output: report
+
+  - name: entropy-check
+    command: make entropy-check
+    description: "Report code hygiene metrics"
+    output: report
+
+actuators:
+  - name: build
+    command: make build
+    description: "Release build"
+    side_effect: "Creates target/release/symphony binary"
+
+  - name: fmt
+    command: make fmt
+    description: "Auto-format code"
+    side_effect: "Modifies source files in place"
+
+  - name: clippy-fix
+    command: "cargo clippy --fix --allow-dirty"
+    description: "Auto-fix lint issues"
+    side_effect: "Modifies source files in place"
+
+  - name: install
+    command: make install
+    description: "Install symphony binary to ~/.cargo/bin"
+    side_effect: "Overwrites existing binary"
+
+  - name: publish
+    command: make publish
+    description: "Publish all crates to crates.io in dependency order"
+    side_effect: "Publishes to public registry"
+    requires_gate: smoke
+
+  - name: changelog
+    command: make changelog
+    description: "Generate CHANGELOG.md from conventional commits"
+    side_effect: "Overwrites CHANGELOG.md"
+
+  - name: release
+    command: "make release VERSION=<semver>"
+    description: "Bump version, generate changelog, commit, tag"
+    side_effect: "Creates git commit and tag"
+    requires_gate: smoke

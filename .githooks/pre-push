@@ -1,0 +1,20 @@
+#!/bin/sh
+# Symphony pre-push hook — runs conversation history bridge before push.
+# Graceful degradation: warns but never blocks push.
+# Activate: git config core.hooksPath .githooks
+
+echo "=== pre-push: conversation history bridge ==="
+
+if command -v python3 >/dev/null 2>&1; then
+  python3 scripts/conversation-history.py 2>&1 || true
+
+  # Check if bridge generated unstaged changes
+  if ! git diff --quiet docs/conversations/ 2>/dev/null; then
+    echo "⚠ Conversation bridge generated unstaged changes in docs/conversations/"
+    echo "  Consider: git add docs/conversations/ && git commit --amend"
+  fi
+else
+  echo "⚠ python3 not found — skipping conversation bridge"
+fi
+
+echo "=== pre-push: done ==="
