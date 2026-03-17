@@ -57,6 +57,11 @@ pub struct HooksConfig {
     pub before_run: Option<String>,
     pub after_run: Option<String>,
     pub before_remove: Option<String>,
+    /// PR feedback hook: runs after `after_run` between turns.
+    /// Unlike other hooks, its **stdout is captured** and returned as feedback
+    /// to use as context for the next agent turn (PR review comments, CI results, etc.).
+    /// Failure is logged and ignored (non-fatal).
+    pub pr_feedback: Option<String>,
     pub timeout_ms: u64,
 }
 
@@ -120,6 +125,7 @@ impl Default for HooksConfig {
             before_run: None,
             after_run: None,
             before_remove: None,
+            pr_feedback: None,
             timeout_ms: 60000,
         }
     }

@@ -71,6 +71,47 @@ git config core.hooksPath .githooks
 - State normalization: `trim().to_lowercase()` for issue state comparisons
 - Workspace keys: only `[A-Za-z0-9._-]`, replace others with `_`
 
+## Control Metalayer (Development Grounding Framework)
+
+The control metalayer (`CONTROL.md`) is the **active grounding framework** that drives all development — not a passive checklist. Every code change follows this loop:
+
+```
+1. CHECK setpoints    → Which setpoints does this change affect?
+2. IMPLEMENT          → Write code that satisfies the setpoints
+3. MEASURE (sensors)  → Run `make smoke` / `make control-audit`
+4. VERIFY             → All affected setpoints green?
+5. DOCUMENT           → Update CONTROL.md, Project Status, STATE.md
+6. FEEDBACK           → Deviation log if any setpoint was relaxed
+```
+
+Before starting any feature or fix:
+- Read `CONTROL.md` to identify which setpoints your change touches
+- After implementation, verify those setpoints pass
+- If adding new behavior, add corresponding setpoints to CONTROL.md
+- Update `docs/roadmap/Project Status.md` and `.planning/STATE.md` test counts
+
+The metalayer ensures **stability across agent sessions** — every agent reads the same setpoints and produces verifiably correct output.
+
+## PR Review Loop
+
+When Symphony (or any agent) works on an issue, the full cycle includes PR review handling:
+
+```
+1. Agent implements the change
+2. after_run hook: commit → push → create PR
+3. pr_feedback hook: fetch PR review comments (gh pr view --json)
+4. If comments exist → next turn receives them as context
+5. Agent resolves comments → push fixes
+6. Repeat until PR is clean or max_turns exhausted
+```
+
+**Convention for agents working in this repo:**
+- After pushing a PR, check for review comments with `gh api repos/{owner}/{repo}/pulls/{number}/comments`
+- Resolve each comment by either: fixing the code, accepting the suggestion, or replying with justification for rejecting
+- PR title format: `<ISSUE-ID>: <concise description>`
+- PR body must include: Summary, Files Changed, Tests, Test Plan
+- Link the PR to the Linear issue via `gh` or Linear API
+
 ## Safety Rules
 - Workspace paths MUST stay under workspace root (canonicalize + prefix check)
 - Coding agent cwd MUST equal the per-issue workspace path

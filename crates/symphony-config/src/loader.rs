@@ -186,6 +186,9 @@ fn extract_hooks(v: &serde_yaml::Value) -> HooksConfig {
     if let Some(s) = get_str(v, "before_remove") {
         hooks.before_remove = Some(s);
     }
+    if let Some(s) = get_str(v, "pr_feedback") {
+        hooks.pr_feedback = Some(s);
+    }
     if let Some(timeout) = get_u64(v, "timeout_ms")
         && timeout > 0
     {
@@ -416,6 +419,7 @@ hooks:
   before_run: "echo before"
   after_run: "echo after"
   before_remove: "echo remove"
+  pr_feedback: "gh pr view --json comments -q '.comments[].body'"
   timeout_ms: 30000
 agent:
   max_concurrent_agents: 5
@@ -460,6 +464,10 @@ Prompt body"#;
         assert_eq!(config.hooks.before_run, Some("echo before".into()));
         assert_eq!(config.hooks.after_run, Some("echo after".into()));
         assert_eq!(config.hooks.before_remove, Some("echo remove".into()));
+        assert_eq!(
+            config.hooks.pr_feedback,
+            Some("gh pr view --json comments -q '.comments[].body'".into())
+        );
         assert_eq!(config.hooks.timeout_ms, 30000);
 
         // Agent

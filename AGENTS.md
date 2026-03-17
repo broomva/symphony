@@ -103,6 +103,25 @@ Code change → make smoke (pre-commit) → tests pass → docs updated → push
      └─── If smoke fails: fix before proceeding, never suppress ───────┘
 ```
 
+## Control Metalayer — Development Grounding
+
+The control metalayer (`CONTROL.md`) is the **active grounding framework** for all agent work.
+
+**Before every change:**
+1. Read `CONTROL.md` → identify affected setpoints
+2. Implement code that satisfies those setpoints
+3. Run `make smoke` → verify sensors pass
+4. Add new setpoints if adding new behavior
+5. Update docs: `Project Status.md`, `STATE.md`, `Control Harness.md`
+6. Log deviations if any setpoint was temporarily relaxed
+
+**PR Review Loop:**
+After pushing changes, agents must handle PR review comments:
+1. Check PR for review comments (`gh api repos/.../pulls/.../comments`)
+2. Fix code, accept suggestions, or reply with justification
+3. Push fixes and repeat until PR is clean or max_turns exhausted
+4. Link PR to the issue tracker (Linear/GitHub)
+
 ## Agent Guidelines
 - The spec (Symphony SPEC.md) is the source of truth for all behavior
 - Prefer editing existing crate code over creating new crates

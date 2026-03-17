@@ -161,6 +161,39 @@ impl WorkspaceManager {
         }
     }
 
+    /// Run the pr_feedback hook, capturing stdout as feedback content (S59-S62).
+    ///
+    /// Unlike other hooks, this one returns the hook's stdout as a `String`.
+    /// Empty output or failure → returns empty string (non-fatal).
+    pub async fn pr_feedback(
+        &self,
+        workspace_path: &Path,
+        identifier: &str,
+        title: &str,
+    ) -> String {
+        let Some(hook) = &self.hooks.pr_feedback else {
+            return String::new();
+        };
+
+        match run_hook_capture_stdout(
+            hook,
+            workspace_path,
+            self.hooks.timeout_ms,
+            &[
+                ("SYMPHONY_ISSUE_ID", identifier),
+                ("SYMPHONY_ISSUE_TITLE", title),
+            ],
+        )
+        .await
+        {
+            Ok(output) => output.trim().to_string(),
+            Err(e) => {
+                tracing::warn!(%e, "pr_feedback hook failed (ignored)");
+                String::new()
+            }
+        }
+    }
+
     /// Clean a workspace directory for a terminal issue (S8.5, S8.6).
     pub async fn clean(&self, identifier: &str) -> Result<(), WorkspaceError> {
         let workspace_key = sanitize_identifier(identifier);
@@ -259,6 +292,47 @@ async fn run_hook_with_env(
         Ok(Ok(output)) => {
             if output.status.success() {
                 Ok(())
+            } else {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                Err(WorkspaceError::HookFailed {
+                    hook: script.chars().take(50).collect(),
+                    error: stderr.to_string(),
+                })
+            }
+        }
+        Ok(Err(e)) => Err(WorkspaceError::HookFailed {
+            hook: script.chars().take(50).collect(),
+            error: e.to_string(),
+        }),
+        Err(_) => Err(WorkspaceError::HookTimeout {
+            hook: script.chars().take(50).collect(),
+        }),
+    }
+}
+
+/// Execute a hook script and capture stdout (for pr_feedback hook).
+/// Returns stdout content on success, error on failure/timeout.
+async fn run_hook_capture_stdout(
+    script: &str,
+    cwd: &Path,
+    timeout_ms: u64,
+    env_vars: &[(&str, &str)],
+) -> Result<String, WorkspaceError> {
+    use tokio::process::Command;
+
+    let mut cmd = Command::new("sh");
+    cmd.args(["-lc", script]).current_dir(cwd);
+    for (key, val) in env_vars {
+        cmd.env(key, val);
+    }
+
+    let result =
+        tokio::time::timeout(std::time::Duration::from_millis(timeout_ms), cmd.output()).await;
+
+    match result {
+        Ok(Ok(output)) => {
+            if output.status.success() {
+                Ok(String::from_utf8_lossy(&output.stdout).to_string())
             } else {
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 Err(WorkspaceError::HookFailed {
@@ -499,6 +573,68 @@ mod tests {
         );
 
         mgr.clean("NONEXISTENT").await.unwrap();
+    }
+
+    // ── PR feedback hook (S59-S62) ──
+
+    #[tokio::test]
+    async fn pr_feedback_captures_stdout() {
+        let dir = tempfile::tempdir().unwrap();
+        let ws = dir.path().join("ws");
+        std::fs::create_dir_all(&ws).unwrap();
+
+        let mgr = WorkspaceManager::new(
+            WorkspaceConfig {
+                root: dir.path().to_path_buf(),
+            },
+            HooksConfig {
+                pr_feedback: Some("echo 'review comment: fix typo'".into()),
+                timeout_ms: 5000,
+                ..Default::default()
+            },
+        );
+
+        let feedback = mgr.pr_feedback(&ws, "STI-100", "Test Issue").await;
+        assert_eq!(feedback, "review comment: fix typo");
+    }
+
+    #[tokio::test]
+    async fn pr_feedback_empty_when_no_hook() {
+        let dir = tempfile::tempdir().unwrap();
+        let ws = dir.path().join("ws");
+        std::fs::create_dir_all(&ws).unwrap();
+
+        let mgr = WorkspaceManager::new(
+            WorkspaceConfig {
+                root: dir.path().to_path_buf(),
+            },
+            HooksConfig::default(), // no pr_feedback
+        );
+
+        let feedback = mgr.pr_feedback(&ws, "STI-100", "Test Issue").await;
+        assert!(feedback.is_empty());
+    }
+
+    #[tokio::test]
+    async fn pr_feedback_failure_returns_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let ws = dir.path().join("ws");
+        std::fs::create_dir_all(&ws).unwrap();
+
+        let mgr = WorkspaceManager::new(
+            WorkspaceConfig {
+                root: dir.path().to_path_buf(),
+            },
+            HooksConfig {
+                pr_feedback: Some("exit 1".into()),
+                timeout_ms: 5000,
+                ..Default::default()
+            },
+        );
+
+        // Failure returns empty, not error (S62)
+        let feedback = mgr.pr_feedback(&ws, "STI-100", "Test Issue").await;
+        assert!(feedback.is_empty());
     }
 
     // ── Path containment (S9.5) ──

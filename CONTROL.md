@@ -117,6 +117,14 @@ created: 2026-03-06
 | S57 | `GET /metrics` returns Prometheus text format | Unit test: prometheus_metrics_returns_text | — |
 | S58 | `/metrics` endpoint bypasses auth | Unit test: prometheus_metrics_bypasses_auth | — |
 
+### PR Review Loop (S59-S62)
+| ID | Setpoint | Measurement | Spec |
+|----|----------|-------------|------|
+| S59 | `pr_feedback` hook config parsed from WORKFLOW.md | Unit test: config extraction | S5.3.4 ext |
+| S60 | `pr_feedback` hook runs after `after_run` between turns | Unit test: hook execution order | S9.4 ext |
+| S61 | `pr_feedback` output captured and available as next-turn context | Unit test: feedback piped to turn | S7.1 ext |
+| S62 | `pr_feedback` failure is logged and ignored (non-fatal) | Unit test: hook fail → no error | S9.4 ext |
+
 ---
 
 ## Sensors (How we measure)

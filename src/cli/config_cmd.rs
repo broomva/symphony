@@ -65,6 +65,10 @@ pub async fn run_config(workflow_path: &Path, format: OutputFormat) -> anyhow::R
         "  before_remove:  {}",
         config.hooks.before_remove.as_deref().unwrap_or("(none)")
     );
+    println!(
+        "  pr_feedback:    {}",
+        config.hooks.pr_feedback.as_deref().unwrap_or("(none)")
+    );
     println!("  timeout_ms:     {}", config.hooks.timeout_ms);
     println!();
 

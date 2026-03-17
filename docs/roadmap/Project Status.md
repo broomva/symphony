@@ -18,7 +18,7 @@ Last updated: 2026-03-17
 | Metric | Value |
 |--------|-------|
 | **Phase** | Core complete (0-8), Cloud in parallel (9) |
-| **Tests** | 168 passing + 5 opt-in integration |
+| **Tests** | 171 passing + 5 opt-in integration |
 | **Warnings** | 0 (clippy clean) |
 | **Gate** | `make smoke` PASS |
 | **Spec conformance** | 100% core + extensions |
@@ -59,6 +59,13 @@ Last updated: 2026-03-17
 ## Remaining Gaps
 
 No critical gaps remain. Phase 9 (Symphony Cloud) is the next milestone.
+
+## New Features (Post Phase 8)
+
+| Feature | Description | Date |
+|---------|-------------|------|
+| PR review loop | `pr_feedback` hook captures PR comments, feeds back as next-turn context | 2026-03-17 |
+| Control metalayer governance | CLAUDE.md and AGENTS.md updated with metalayer-driven development loop | 2026-03-17 |
 
 ## Implementation Decisions
 

@@ -655,6 +655,23 @@ pub async fn run_worker(
         .after_run_with_issue(&workspace.path, &issue.identifier, &issue.title)
         .await;
 
+    // PR feedback loop (S59-S62): capture PR review comments for next turn
+    let feedback = workspace_mgr
+        .pr_feedback(&workspace.path, &issue.identifier, &issue.title)
+        .await;
+    if !feedback.is_empty() {
+        let feedback_path = workspace.path.join(".symphony-pr-feedback.md");
+        if let Err(e) = tokio::fs::write(&feedback_path, &feedback).await {
+            tracing::warn!(error = %e, "failed to write PR feedback file");
+        } else {
+            tracing::info!(
+                identifier = %issue.identifier,
+                bytes = feedback.len(),
+                "PR feedback captured for next turn"
+            );
+        }
+    }
+
     Ok(())
 }
 
