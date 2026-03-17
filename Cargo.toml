@@ -13,7 +13,7 @@ resolver = "3"
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-license = "MIT"
+license = "Apache-2.0"
 rust-version = "1.85"
 
 [workspace.dependencies]
@@ -36,7 +36,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # CLI
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 
 # File watching
 notify = "7"
@@ -74,6 +74,8 @@ path = "src/main.rs"
 
 [dev-dependencies]
 tempfile = "3"
+assert_cmd = "2"
+predicates = "3"
 
 [dependencies]
 symphony-core.workspace = true
@@ -88,4 +90,8 @@ clap.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 anyhow.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
 dotenvy = "0.15"

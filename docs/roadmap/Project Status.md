@@ -17,12 +17,12 @@ Last updated: 2026-03-16
 
 | Metric | Value |
 |--------|-------|
-| **Phase** | Core complete (0-7), OSS prep next (8), Cloud planned (9) |
-| **Tests** | 136 passing + 5 opt-in integration |
+| **Phase** | Core complete (0-7), OSS prep in progress (8), Cloud in parallel (9) |
+| **Tests** | 165 passing + 5 opt-in integration |
 | **Warnings** | 0 (clippy clean) |
 | **Gate** | `make smoke` PASS |
 | **Spec conformance** | 100% core + extensions |
-| **Lines of Rust** | ~6,100 |
+| **Lines of Rust** | ~7,500 |
 | **Crates** | 8 (7 library + 1 binary) |
 
 ## Phase Completion
@@ -38,19 +38,27 @@ Last updated: 2026-03-16
 | 6 | Observability | Done | 5 | 2026-03-06 |
 | 7 | Integration & CLI | Done | 4 | 2026-03-06 |
 | Ext | GraphQL tool + real tests | Done | 14+5i | 2026-03-06 |
-| 8 | Open Source Release | Planned | — | — |
-| 9 | Symphony Cloud | Planned | — | — |
+| 8 | Open Source Release | In Progress | 8+ | 2026-03-16 |
+| 9 | Symphony Cloud | In Progress | — | — |
 
-## Known Gaps
+## Resolved Gaps (Phase 8)
+
+| Area | Resolution | Date |
+|------|------------|------|
+| Stall kill | Worker abort handles + kill + retry with backoff | 2026-03-16 |
+| Graceful shutdown | SIGTERM/SIGINT → shutdown channel → scheduler drain | 2026-03-16 |
+| Health endpoints | `/healthz` (liveness), `/readyz` (readiness) | 2026-03-16 |
+| Docker | Multi-stage Dockerfile + docker-compose.yml | 2026-03-16 |
+| CI/CD | GitHub Actions: check, test, multi-platform build, docker | 2026-03-16 |
+| Examples | 3 example workflows in `examples/` | 2026-03-16 |
+| License | Cargo.toml updated to Apache-2.0 | 2026-03-16 |
+
+## Remaining Gaps
 
 | Area | Description | Severity | See |
 |------|-------------|----------|-----|
-| Stall kill | Detected but not terminated | Medium | [[docs/crates/symphony-orchestrator\|orchestrator]] |
-| Graceful shutdown | No SIGTERM/SIGINT handling | High | [[docs/roadmap/Production Roadmap\|Roadmap]] |
-| Health endpoints | No `/healthz` or `/readyz` | High | [[docs/roadmap/Production Roadmap\|Roadmap]] |
-| Authentication | HTTP API is open | High | [[docs/roadmap/Production Roadmap\|Roadmap]] |
+| Authentication | HTTP API is open (localhost-bound) | Medium | [[docs/roadmap/Production Roadmap\|Roadmap]] |
 | Metrics | No Prometheus `/metrics` | Medium | [[docs/roadmap/Production Roadmap\|Roadmap]] |
-| Docker | No Dockerfile | Medium | [[PLANS]] Phase 8.3 |
 
 ## Implementation Decisions
 

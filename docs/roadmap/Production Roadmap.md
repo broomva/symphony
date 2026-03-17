@@ -15,24 +15,24 @@ Path from working orchestrator to fully managed service. See [[PLANS]] Phase 8 a
 
 ## Tier 1 — Service Hardness (before exposing)
 
-Must-have before any deployment beyond localhost.
+All Tier 1 gaps resolved.
 
-| Area | Gap | Why | Phase |
-|------|-----|-----|-------|
-| **Graceful shutdown** | No SIGTERM/SIGINT handling | K8s/Docker sends SIGTERM; orphaned workers | 8 |
-| **Health endpoints** | No `/healthz` or `/readyz` | Load balancer + orchestrator readiness | 8 |
-| **Stall kill** | Detected not acted on | Zombie agent processes accumulate | Core gap |
-| **Graceful drain** | No "shutting down, let runs finish" | Deploys kill in-flight work | 8 |
+| Area | Status | Resolution |
+|------|--------|------------|
+| **Graceful shutdown** | Done | SIGTERM/SIGINT handler → watch channel → scheduler + HTTP server |
+| **Health endpoints** | Done | `/healthz` (liveness, always 200), `/readyz` (readiness, 503 until initialized) |
+| **Stall kill** | Done | Abort handles tracked per worker; stalled sessions killed + retried with backoff |
+| **Graceful drain** | Done | Scheduler drain loop: stops dispatch, waits for in-flight workers to complete |
 
 ## Tier 2 — Operability (production confidence)
 
 | Area | Gap | Why | Phase |
 |------|-----|-----|-------|
-| **Docker** | No Dockerfile/Compose | Deployment story | [[PLANS]] 8.3 |
-| **CI/CD** | No GitHub Actions | Automated gate enforcement | [[PLANS]] 8.2 |
-| **Prometheus** | No `/metrics` endpoint | Standard observability stack | Post-8 |
-| **Env config** | Only WORKFLOW.md | Managed services use env/secrets | Post-8 |
-| **Examples** | No example workflows | Onboarding for new users | [[PLANS]] 8.4 |
+| **Docker** | Done | Multi-stage Dockerfile + docker-compose.yml with healthcheck | [[PLANS]] 8.3 |
+| **CI/CD** | Done | GitHub Actions: check, test, build (3 targets), docker build | [[PLANS]] 8.2 |
+| **Examples** | Done | 3 example workflows: linear-claude, linear-codex, github-claude | [[PLANS]] 8.4 |
+| **Prometheus** | Planned | No `/metrics` endpoint yet | Post-8 |
+| **Env config** | Planned | Only WORKFLOW.md; managed services prefer env/secrets | Post-8 |
 
 ## Tier 3 — Open Source Release ([[PLANS]] Phase 8)
 

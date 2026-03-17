@@ -2,44 +2,34 @@
 //!
 //! A long-running daemon that polls an issue tracker (Linear),
 //! creates isolated workspaces per issue, and runs coding agent sessions.
+//!
+//! Provides a comprehensive CLI for both daemon control and offline operations.
 
-use std::path::PathBuf;
-use std::sync::Arc;
+mod cli;
 
-use clap::Parser;
-use tokio::sync::{watch, Mutex};
-
-/// Symphony: orchestrate coding agents for project work.
-#[derive(Parser, Debug)]
-#[command(name = "symphony", version, about)]
-struct Cli {
-    /// Path to WORKFLOW.md file.
-    #[arg(default_value = "WORKFLOW.md")]
-    workflow_path: PathBuf,
-
-    /// HTTP server port (overrides server.port in WORKFLOW.md).
-    #[arg(long)]
-    port: Option<u16>,
-}
+use cli::{Command, StartArgs};
 
 fn main() -> anyhow::Result<()> {
     // Load .env file if present (best-effort, missing file is fine)
     let _ = dotenvy::dotenv();
 
-    let cli = Cli::parse();
+    let parsed = cli::parse_cli();
 
-    // Check if explicit path exists (S17.7: nonexistent explicit path → error)
-    if !cli.workflow_path.exists() {
-        eprintln!(
-            "error: workflow file not found: {}",
-            cli.workflow_path.display()
-        );
-        std::process::exit(1);
+    // Resolve the command: None → Start with defaults (backward compat, S46)
+    let command = parsed
+        .command
+        .unwrap_or(Command::Start(StartArgs::default()));
+
+    // Commands that don't need the async runtime
+    match &command {
+        Command::Validate(_) | Command::Config(_) | Command::Check | Command::Audit
+        | Command::Test(_) | Command::Logs(_) => {}
+        _ => {}
     }
 
     // Build and run the async runtime
     let rt = tokio::runtime::Runtime::new()?;
-    let result = rt.block_on(run(cli));
+    let result = rt.block_on(run_command(command, parsed.port, parsed.format));
 
     match result {
         Ok(()) => std::process::exit(0),
@@ -50,102 +40,55 @@ fn main() -> anyhow::Result<()> {
     }
 }
 
-async fn run(cli: Cli) -> anyhow::Result<()> {
-    // Initialize logging
-    symphony_observability::init_logging();
-
-    tracing::info!(
-        workflow = %cli.workflow_path.display(),
-        "symphony starting"
-    );
-
-    // Load workflow
-    let workflow_def = symphony_config::loader::load_workflow(&cli.workflow_path)?;
-    let config = symphony_config::loader::extract_config(&workflow_def);
-    let prompt_template = workflow_def.prompt_template.clone();
-
-    // Validate config
-    if let Err(errors) = symphony_config::loader::validate_dispatch_config(&config) {
-        for e in &errors {
-            tracing::error!(error = %e, "startup validation failed");
+async fn run_command(
+    command: Command,
+    port: Option<u16>,
+    format: cli::OutputFormat,
+) -> anyhow::Result<()> {
+    match command {
+        Command::Start(args) => {
+            // Initialize logging for daemon mode
+            symphony_observability::init_logging();
+            cli::start::run_start(args, port).await
         }
-        anyhow::bail!("startup validation failed: {}", errors.join("; "));
-    }
-
-    let config = Arc::new(config);
-    let (config_tx, config_rx) = watch::channel(config.clone());
-
-    // Start workflow watcher
-    let watch_path = cli.workflow_path.clone();
-    tokio::spawn(async move {
-        if let Err(e) = symphony_config::watcher::watch_workflow(watch_path, config_tx).await {
-            tracing::error!(%e, "workflow watcher failed");
+        Command::Stop => cli::status::run_stop(port).await,
+        Command::Status => cli::status::run_status(port, format).await,
+        Command::Issues => cli::issues::run_issues(port, format).await,
+        Command::Issue(args) => {
+            cli::issues::run_issue(&args.identifier, port, format).await
         }
-    });
-
-    // Build tracker client
-    let tracker: Arc<dyn symphony_tracker::TrackerClient> = Arc::new(
-        symphony_tracker::linear::LinearClient::new(
-            config.tracker.endpoint.clone(),
-            config.tracker.api_key.clone(),
-            config.tracker.project_slug.clone(),
-            config.tracker.active_states.clone(),
-        ),
-    );
-
-    // Build workspace manager
-    let workspace_mgr = Arc::new(symphony_workspace::WorkspaceManager::new(
-        config.workspace.clone(),
-        config.hooks.clone(),
-    ));
-
-    // Ensure workspace root exists
-    tokio::fs::create_dir_all(&config.workspace.root).await?;
-
-    // Shared observability state
-    let obs_state: Arc<Mutex<Option<symphony_core::OrchestratorState>>> =
-        Arc::new(Mutex::new(None));
-
-    // Refresh channel for immediate poll trigger
-    let (refresh_tx, refresh_rx) = tokio::sync::mpsc::channel(1);
-
-    // Determine HTTP port (S13.7: CLI overrides config)
-    let server_port = cli.port.or(config.server_port);
-
-    // Start HTTP server if configured
-    if let Some(port) = server_port {
-        let app_state = symphony_observability::server::AppState {
-            orchestrator: obs_state.clone(),
-            refresh_tx: Some(refresh_tx),
-        };
-        tokio::spawn(async move {
-            if let Err(e) =
-                symphony_observability::server::start_server_with_state(port, app_state).await
-            {
-                tracing::error!(%e, "HTTP server failed");
-            }
-        });
+        Command::Refresh => cli::issues::run_refresh(port).await,
+        Command::Workspaces => cli::workspaces::run_workspaces(port, format).await,
+        Command::Workspace(args) => {
+            cli::workspaces::run_workspace(
+                &args.identifier,
+                args.clean,
+                port,
+                format,
+            )
+            .await
+        }
+        Command::Validate(args) => {
+            cli::control::run_validate(&args.workflow_path, format).await
+        }
+        Command::Config(args) => {
+            cli::config_cmd::run_config(&args.workflow_path, format).await
+        }
+        Command::Check => cli::control::run_check().await,
+        Command::Audit => cli::control::run_audit().await,
+        Command::Test(args) => {
+            cli::control::run_test(args.crate_name.as_deref()).await
+        }
+        Command::Logs(args) => cli::logs::run_logs(&args).await,
     }
-
-    // Start scheduler with real tracker, workspace manager, and prompt template
-    let mut scheduler = symphony_orchestrator::Scheduler::new(
-        config,
-        config_rx,
-        tracker,
-        workspace_mgr,
-        prompt_template,
-        obs_state,
-        Some(refresh_rx),
-    );
-    scheduler.run().await?;
-
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::cli::*;
+    use clap::Parser;
     use std::io::Write;
+    use std::path::PathBuf;
     use tempfile::NamedTempFile;
 
     fn make_valid_workflow() -> NamedTempFile {
@@ -158,35 +101,44 @@ mod tests {
         f
     }
 
+    // S46: backward compat — bare `symphony` works as start
     #[test]
-    fn cli_default_workflow_path() {
+    fn cli_default_no_subcommand() {
         let cli = Cli::parse_from(["symphony"]);
-        assert_eq!(cli.workflow_path, PathBuf::from("WORKFLOW.md"));
+        assert!(cli.command.is_none());
         assert!(cli.port.is_none());
     }
 
     #[test]
-    fn cli_explicit_path() {
-        let cli = Cli::parse_from(["symphony", "/tmp/custom.md"]);
-        assert_eq!(cli.workflow_path, PathBuf::from("/tmp/custom.md"));
+    fn cli_start_explicit() {
+        let cli = Cli::parse_from(["symphony", "start"]);
+        assert!(matches!(cli.command, Some(Command::Start(_))));
     }
 
     #[test]
-    fn cli_port_flag() {
+    fn cli_start_with_path() {
+        let cli = Cli::parse_from(["symphony", "start", "/tmp/custom.md"]);
+        if let Some(Command::Start(args)) = cli.command {
+            assert_eq!(args.workflow_path, PathBuf::from("/tmp/custom.md"));
+        }
+    }
+
+    #[test]
+    fn cli_port_flag_global() {
         let f = make_valid_workflow();
         let cli = Cli::parse_from([
             "symphony",
-            f.path().to_str().unwrap(),
             "--port",
             "8080",
+            "start",
+            f.path().to_str().unwrap(),
         ]);
         assert_eq!(cli.port, Some(8080));
     }
 
     #[test]
     fn cli_port_overrides_config() {
-        // CLI --port 8080 should override server.port=3000
-        let cli = Cli::parse_from(["symphony", "--port", "8080"]);
+        let cli = Cli::parse_from(["symphony", "--port", "8080", "status"]);
         let config_port = Some(3000u16);
         let effective = cli.port.or(config_port);
         assert_eq!(effective, Some(8080));
@@ -194,9 +146,29 @@ mod tests {
 
     #[test]
     fn cli_config_port_used_when_no_flag() {
-        let cli = Cli::parse_from(["symphony"]);
+        let cli = Cli::parse_from(["symphony", "status"]);
         let config_port = Some(3000u16);
         let effective = cli.port.or(config_port);
         assert_eq!(effective, Some(3000));
+    }
+
+    #[test]
+    fn cli_format_json() {
+        let cli = Cli::parse_from(["symphony", "--format", "json", "status"]);
+        assert_eq!(cli.format, OutputFormat::Json);
+    }
+
+    #[test]
+    fn cli_validate_subcommand() {
+        let cli = Cli::parse_from(["symphony", "validate", "/tmp/wf.md"]);
+        if let Some(Command::Validate(args)) = cli.command {
+            assert_eq!(args.workflow_path, PathBuf::from("/tmp/wf.md"));
+        }
+    }
+
+    #[test]
+    fn cli_check_subcommand() {
+        let cli = Cli::parse_from(["symphony", "check"]);
+        assert!(matches!(cli.command, Some(Command::Check)));
     }
 }

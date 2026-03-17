@@ -17,6 +17,7 @@ use tokio::sync::Mutex;
 pub struct AppState {
     pub orchestrator: Arc<Mutex<Option<OrchestratorState>>>,
     pub refresh_tx: Option<tokio::sync::mpsc::Sender<()>>,
+    pub shutdown_tx: Option<Arc<tokio::sync::watch::Sender<bool>>>,
 }
 
 /// State summary response (Spec Section 13.7.2).
@@ -87,10 +88,17 @@ pub struct ErrorDetail {
 pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/", get(dashboard))
+        .route("/healthz", get(healthz))
+        .route("/readyz", get(readyz))
         .route("/api/v1/state", get(get_state))
+        .route("/api/v1/workspaces", get(get_workspaces))
         .route(
             "/api/v1/refresh",
             axum::routing::post(post_refresh).get(method_not_allowed),
+        )
+        .route(
+            "/api/v1/shutdown",
+            axum::routing::post(post_shutdown).get(method_not_allowed),
         )
         .route("/api/v1/{identifier}", get(get_issue))
         .with_state(state)
@@ -243,6 +251,67 @@ async fn post_refresh(State(state): State<AppState>) -> (StatusCode, Json<serde_
     )
 }
 
+/// POST /api/v1/shutdown — graceful shutdown (S45).
+async fn post_shutdown(State(state): State<AppState>) -> (StatusCode, Json<serde_json::Value>) {
+    if let Some(tx) = &state.shutdown_tx {
+        let _ = tx.send(true);
+        (
+            StatusCode::ACCEPTED,
+            Json(serde_json::json!({
+                "shutdown": true,
+                "requested_at": chrono::Utc::now().to_rfc3339()
+            })),
+        )
+    } else {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": {
+                    "code": "shutdown_unavailable",
+                    "message": "shutdown channel not configured"
+                }
+            })),
+        )
+    }
+}
+
+/// GET /api/v1/workspaces — list workspace directories.
+async fn get_workspaces(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let snapshot = state.orchestrator.lock().await;
+    let mut entries = Vec::new();
+
+    if let Some(s) = snapshot.as_ref() {
+        for entry in s.running.values() {
+            entries.push(serde_json::json!({
+                "name": entry.identifier,
+                "status": "running",
+            }));
+        }
+        for entry in s.retry_attempts.values() {
+            entries.push(serde_json::json!({
+                "name": entry.identifier,
+                "status": "retrying",
+            }));
+        }
+    }
+
+    Json(serde_json::Value::Array(entries))
+}
+
+/// GET /healthz — liveness probe (always 200).
+async fn healthz() -> StatusCode {
+    StatusCode::OK
+}
+
+/// GET /readyz — readiness probe (200 when orchestrator initialized, 503 otherwise).
+async fn readyz(State(state): State<AppState>) -> StatusCode {
+    if state.orchestrator.lock().await.is_some() {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    }
+}
+
 /// 405 Method Not Allowed handler (S13.7.2).
 async fn method_not_allowed() -> (StatusCode, Json<serde_json::Value>) {
     (
@@ -332,18 +401,31 @@ pub async fn start_server(port: u16) -> anyhow::Result<()> {
     let state = AppState {
         orchestrator: Arc::new(Mutex::new(None)),
         refresh_tx: None,
+        shutdown_tx: None,
     };
-    start_server_with_state(port, state).await
+    start_server_with_state(port, state, None).await
 }
 
-/// Start the HTTP server with shared state.
-pub async fn start_server_with_state(port: u16, state: AppState) -> anyhow::Result<()> {
+/// Start the HTTP server with shared state and optional graceful shutdown.
+pub async fn start_server_with_state(
+    port: u16,
+    state: AppState,
+    shutdown_rx: Option<tokio::sync::watch::Receiver<bool>>,
+) -> anyhow::Result<()> {
     let app = build_router(state);
     let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
     tracing::info!(%addr, "starting HTTP server");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    if let Some(mut rx) = shutdown_rx {
+        axum::serve(listener, app)
+            .with_graceful_shutdown(async move {
+                let _ = rx.wait_for(|v| *v).await;
+            })
+            .await?;
+    } else {
+        axum::serve(listener, app).await?;
+    }
     Ok(())
 }
 
@@ -358,6 +440,7 @@ mod tests {
         AppState {
             orchestrator: Arc::new(Mutex::new(Some(OrchestratorState::new(30000, 10)))),
             refresh_tx: None,
+            shutdown_tx: None,
         }
     }
 
@@ -421,6 +504,46 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn healthz_returns_200() {
+        let state = make_app_state();
+        let app = build_router(state);
+        let req = Request::builder()
+            .uri("/healthz")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn readyz_returns_200_when_initialized() {
+        let state = make_app_state();
+        let app = build_router(state);
+        let req = Request::builder()
+            .uri("/readyz")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn readyz_returns_503_when_not_initialized() {
+        let state = AppState {
+            orchestrator: Arc::new(Mutex::new(None)),
+            refresh_tx: None,
+            shutdown_tx: None,
+        };
+        let app = build_router(state);
+        let req = Request::builder()
+            .uri("/readyz")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
     async fn get_refresh_returns_405() {
         let state = make_app_state();
         let app = build_router(state);
@@ -430,5 +553,60 @@ mod tests {
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+    }
+
+    #[tokio::test]
+    async fn post_shutdown_returns_202() {
+        let (shutdown_tx, _shutdown_rx) = tokio::sync::watch::channel(false);
+        let state = AppState {
+            orchestrator: Arc::new(Mutex::new(Some(OrchestratorState::new(30000, 10)))),
+            refresh_tx: None,
+            shutdown_tx: Some(Arc::new(shutdown_tx)),
+        };
+        let app = build_router(state);
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/shutdown")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::ACCEPTED);
+
+        let body = axum::body::to_bytes(resp.into_body(), 1_000_000)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["shutdown"], true);
+    }
+
+    #[tokio::test]
+    async fn post_shutdown_without_channel_returns_503() {
+        let state = make_app_state(); // no shutdown_tx
+        let app = build_router(state);
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/shutdown")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn get_workspaces_returns_array() {
+        let state = make_app_state();
+        let app = build_router(state);
+        let req = Request::builder()
+            .uri("/api/v1/workspaces")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(resp.into_body(), 1_000_000)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json.is_array());
     }
 }

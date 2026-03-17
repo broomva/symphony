@@ -2,7 +2,8 @@
 //!
 //! Owns the poll tick and coordinates dispatch, reconciliation, and retries.
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex as StdMutex};
 
 use chrono::Utc;
 use symphony_agent::{AgentRunner, LinearToolConfig};
@@ -25,9 +26,12 @@ pub struct Scheduler {
     prompt_template: Arc<Mutex<String>>,
     obs_state: Arc<Mutex<Option<OrchestratorState>>>,
     refresh_rx: Option<tokio::sync::mpsc::Receiver<()>>,
+    shutdown_rx: Option<watch::Receiver<bool>>,
+    worker_handles: Arc<StdMutex<HashMap<String, tokio::task::AbortHandle>>>,
 }
 
 impl Scheduler {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         initial_config: Arc<ServiceConfig>,
         config_rx: watch::Receiver<Arc<ServiceConfig>>,
@@ -36,6 +40,7 @@ impl Scheduler {
         prompt_template: String,
         obs_state: Arc<Mutex<Option<OrchestratorState>>>,
         refresh_rx: Option<tokio::sync::mpsc::Receiver<()>>,
+        shutdown_rx: Option<watch::Receiver<bool>>,
     ) -> Self {
         let state = OrchestratorState::new(
             initial_config.polling.interval_ms,
@@ -50,6 +55,8 @@ impl Scheduler {
             prompt_template: Arc::new(Mutex::new(prompt_template)),
             obs_state,
             refresh_rx,
+            shutdown_rx,
+            worker_handles: Arc::new(StdMutex::new(HashMap::new())),
         }
     }
 
@@ -61,6 +68,14 @@ impl Scheduler {
         self.startup_terminal_cleanup().await;
 
         loop {
+            // Check shutdown signal
+            if let Some(rx) = &self.shutdown_rx
+                && *rx.borrow()
+            {
+                tracing::info!("shutdown signal received, stopping scheduler");
+                break;
+            }
+
             let config = self.config_rx.borrow().clone();
 
             // Update dynamic config values
@@ -79,39 +94,97 @@ impl Scheduler {
             // Publish state snapshot to observability server
             self.publish_snapshot().await;
 
-            // Sleep for poll interval, but wake early on refresh signal
+            // Clean up stale worker abort handles
+            self.cleanup_worker_handles().await;
+
+            // Sleep for poll interval, but wake early on refresh or shutdown signal
             let interval = config.polling.interval_ms;
             let sleep = tokio::time::sleep(std::time::Duration::from_millis(interval));
             tokio::pin!(sleep);
 
-            if let Some(rx) = &mut self.refresh_rx {
-                tokio::select! {
-                    _ = &mut sleep => {},
-                    _ = rx.recv() => {
-                        tracing::info!("refresh signal received, running immediate tick");
-                    },
+            match (&mut self.refresh_rx, &mut self.shutdown_rx) {
+                (Some(refresh), Some(shutdown)) => {
+                    tokio::select! {
+                        _ = &mut sleep => {},
+                        _ = refresh.recv() => {
+                            tracing::info!("refresh signal received, running immediate tick");
+                        },
+                        _ = shutdown.changed() => {
+                            if *shutdown.borrow() {
+                                tracing::info!("shutdown signal received during sleep");
+                                break;
+                            }
+                        },
+                    }
                 }
-            } else {
-                sleep.await;
+                (Some(refresh), None) => {
+                    tokio::select! {
+                        _ = &mut sleep => {},
+                        _ = refresh.recv() => {
+                            tracing::info!("refresh signal received, running immediate tick");
+                        },
+                    }
+                }
+                (None, Some(shutdown)) => {
+                    tokio::select! {
+                        _ = &mut sleep => {},
+                        _ = shutdown.changed() => {
+                            if *shutdown.borrow() {
+                                tracing::info!("shutdown signal received during sleep");
+                                break;
+                            }
+                        },
+                    }
+                }
+                (None, None) => {
+                    sleep.await;
+                }
             }
         }
+
+        // Graceful drain: wait for in-flight workers to complete
+        self.drain().await;
+        tracing::info!("scheduler stopped");
+        Ok(())
+    }
+
+    /// Drain mode: wait for all in-flight workers to complete, then return.
+    async fn drain(&self) {
+        loop {
+            let running_count = self.state.lock().await.running.len();
+            if running_count == 0 {
+                tracing::info!("drain complete: all workers finished");
+                return;
+            }
+            tracing::info!(running = running_count, "draining: waiting for in-flight workers");
+            self.publish_snapshot().await;
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        }
+    }
+
+    /// Clean up abort handles for workers that are no longer running.
+    async fn cleanup_worker_handles(&self) {
+        let state = self.state.lock().await;
+        let running_ids: std::collections::HashSet<&str> =
+            state.running.keys().map(|s| s.as_str()).collect();
+        self.worker_handles
+            .lock()
+            .unwrap()
+            .retain(|id, _| running_ids.contains(id.as_str()));
     }
 
     /// Execute one poll-and-dispatch tick (Spec Algorithm 16.2).
     async fn tick(&self, config: &ServiceConfig) {
-        // 1. Reconcile running issues
         tracing::debug!("tick: reconciliation phase");
         self.reconcile_running(config).await;
 
-        // 2. Validate dispatch config
         if let Err(errors) = symphony_config::loader::validate_dispatch_config(config) {
             for e in &errors {
                 tracing::error!(error = %e, "dispatch config validation failed");
             }
-            return; // Skip dispatch, keep reconciliation
+            return;
         }
 
-        // 3. Fetch candidate issues from tracker
         tracing::debug!("tick: fetching candidates");
         let mut candidates = match self.tracker.fetch_candidate_issues().await {
             Ok(issues) => {
@@ -129,7 +202,6 @@ impl Scheduler {
             return;
         }
 
-        // 4. Sort and select eligible candidates
         let state = self.state.lock().await;
         let selected = select_candidates_from(&mut candidates, &state, config);
         drop(state);
@@ -141,7 +213,6 @@ impl Scheduler {
 
         tracing::info!(count = selected.len(), "dispatching candidates");
 
-        // 5. Dispatch each selected issue
         for issue in selected {
             self.dispatch_and_run(issue, None, config).await;
         }
@@ -159,19 +230,43 @@ impl Scheduler {
             state.running.keys().cloned().collect()
         };
 
-        // Stall detection (S8.5 Part A)
-        let now_ms = Utc::now().timestamp_millis();
-        {
+        // Stall detection + kill (S8.5 Part A)
+        let stalled = {
+            let now_ms = Utc::now().timestamp_millis();
             let state = self.state.lock().await;
-            let stalled = reconcile::find_stalled_issues(
-                &state,
-                config.codex.stall_timeout_ms,
-                now_ms,
-            );
-            for id in &stalled {
-                tracing::warn!(issue_id = %id, "stalled session detected");
+            reconcile::find_stalled_issues(&state, config.codex.stall_timeout_ms, now_ms)
+        };
+        for id in &stalled {
+            tracing::warn!(issue_id = %id, "killing stalled session");
+            if let Some(handle) = self.worker_handles.lock().unwrap().remove(id) {
+                handle.abort();
             }
-            // TODO: kill stalled processes and retry
+            let mut state = self.state.lock().await;
+            if let Some(entry) = state.running.remove(id) {
+                state.codex_totals.seconds_running += Utc::now()
+                    .signed_duration_since(entry.started_at)
+                    .num_seconds() as f64;
+                state.codex_totals.input_tokens += entry.codex_input_tokens;
+                state.codex_totals.output_tokens += entry.codex_output_tokens;
+                state.codex_totals.total_tokens += entry.codex_total_tokens;
+
+                let attempt = entry.retry_attempt.unwrap_or(0) + 1;
+                let delay = reconcile::backoff_delay_ms(
+                    attempt,
+                    config.agent.max_retry_backoff_ms,
+                    false,
+                );
+                state.retry_attempts.insert(
+                    id.clone(),
+                    RetryEntry {
+                        issue_id: id.clone(),
+                        identifier: entry.identifier.clone(),
+                        attempt,
+                        due_at_ms: Utc::now().timestamp_millis() as u64 + delay,
+                        error: Some("stalled session killed".into()),
+                    },
+                );
+            }
         }
 
         // Refresh issue states from tracker (S8.5 Part B)
@@ -185,7 +280,6 @@ impl Scheduler {
                     );
                     match action {
                         reconcile::ReconcileAction::UpdateSnapshot => {
-                            // Update in-memory snapshot with new state
                             let mut state = self.state.lock().await;
                             if let Some(entry) = state.running.get_mut(&issue.id) {
                                 entry.issue.state = issue.state;
@@ -198,12 +292,16 @@ impl Scheduler {
                                 state = %issue.state,
                                 "issue moved to terminal state, cleaning up"
                             );
+                            if let Some(handle) =
+                                self.worker_handles.lock().unwrap().remove(&issue.id)
+                            {
+                                handle.abort();
+                            }
                             let mut state = self.state.lock().await;
                             state.running.remove(&issue.id);
                             state.claimed.remove(&issue.id);
                             drop(state);
 
-                            // Clean workspace (S8.5)
                             if let Err(e) = self.workspace_mgr.clean(&issue.identifier).await {
                                 tracing::warn!(error = %e, "workspace cleanup failed");
                             }
@@ -215,6 +313,11 @@ impl Scheduler {
                                 state = %issue.state,
                                 "issue neither active nor terminal, releasing"
                             );
+                            if let Some(handle) =
+                                self.worker_handles.lock().unwrap().remove(&issue.id)
+                            {
+                                handle.abort();
+                            }
                             let mut state = self.state.lock().await;
                             state.running.remove(&issue.id);
                             state.claimed.remove(&issue.id);
@@ -223,7 +326,6 @@ impl Scheduler {
                 }
             }
             Err(e) => {
-                // S8.5: Refresh failure → keep workers running
                 tracing::warn!(error = %e, "state refresh failed, keeping workers");
             }
         }
@@ -240,7 +342,6 @@ impl Scheduler {
             Ok(terminal_issues) => {
                 for issue in &terminal_issues {
                     if let Err(e) = self.workspace_mgr.clean(&issue.identifier).await {
-                        // S8.6: Terminal fetch failure → log warning, continue
                         tracing::warn!(
                             identifier = %issue.identifier,
                             error = %e,
@@ -271,7 +372,6 @@ impl Scheduler {
         let issue_id = issue.id.clone();
         let identifier = issue.identifier.clone();
 
-        // Add to running + claimed
         {
             let mut state = self.state.lock().await;
             state.claimed.insert(issue_id.clone());
@@ -301,17 +401,16 @@ impl Scheduler {
             state.running.insert(issue_id.clone(), entry);
         }
 
-        // Publish state immediately so dashboard shows it
         self.publish_snapshot().await;
 
-        // Spawn worker task
         let state = Arc::clone(&self.state);
         let workspace_mgr = Arc::clone(&self.workspace_mgr);
         let prompt_template = Arc::clone(&self.prompt_template);
         let obs_state = Arc::clone(&self.obs_state);
         let config = config.clone();
+        let handle_id = issue_id.clone();
 
-        tokio::spawn(async move {
+        let join_handle = tokio::spawn(async move {
             let result = run_worker(
                 &issue,
                 attempt,
@@ -338,13 +437,16 @@ impl Scheduler {
                 );
             }
 
-            // Handle worker exit: update state, schedule retry
             handle_worker_exit(&state, &issue_id, normal_exit, &config).await;
 
-            // Update observability
             let snapshot = build_snapshot(&state).await;
             *obs_state.lock().await = Some(snapshot);
         });
+
+        self.worker_handles
+            .lock()
+            .unwrap()
+            .insert(handle_id, join_handle.abort_handle());
     }
 
     /// Process due retry timers (Spec Algorithm 16.6).
@@ -368,13 +470,11 @@ impl Scheduler {
                 "retry timer fired"
             );
 
-            // Remove retry entry
             {
                 let mut state = self.state.lock().await;
                 state.retry_attempts.remove(&issue_id);
             }
 
-            // Re-fetch the issue to check if it's still eligible
             match self
                 .tracker
                 .fetch_issue_states_by_ids(std::slice::from_ref(&issue_id))
@@ -386,7 +486,6 @@ impl Scheduler {
                         &issue.state,
                         &config.tracker.active_states,
                     ) {
-                        // Still active → re-dispatch with retry attempt
                         self.dispatch_and_run(
                             issue.clone(),
                             Some(entry.attempt),
@@ -404,7 +503,6 @@ impl Scheduler {
                     }
                 }
                 Ok(_) => {
-                    // Issue not found, release claim
                     let mut state = self.state.lock().await;
                     state.claimed.remove(&issue_id);
                 }
@@ -447,7 +545,6 @@ async fn build_snapshot(state: &Arc<Mutex<OrchestratorState>>) -> OrchestratorSt
     snapshot.codex_totals = state.codex_totals.clone();
     snapshot.codex_rate_limits = state.codex_rate_limits.clone();
 
-    // Add active session elapsed time at snapshot time (S13.5)
     let now = Utc::now();
     for entry in snapshot.running.values() {
         let elapsed = now
@@ -459,7 +556,7 @@ async fn build_snapshot(state: &Arc<Mutex<OrchestratorState>>) -> OrchestratorSt
     snapshot
 }
 
-/// Run a worker for a single issue: workspace → hooks → prompt → agent.
+/// Run a worker for a single issue: workspace -> hooks -> prompt -> agent.
 async fn run_worker(
     issue: &Issue,
     attempt: Option<u32>,
@@ -467,7 +564,6 @@ async fn run_worker(
     workspace_mgr: &WorkspaceManager,
     prompt_template: &Mutex<String>,
 ) -> Result<(), anyhow::Error> {
-    // 1. Create/reuse workspace (S9.1-9.2)
     let workspace = workspace_mgr.create_for_issue(&issue.identifier).await?;
     tracing::info!(
         identifier = %issue.identifier,
@@ -476,17 +572,14 @@ async fn run_worker(
         "workspace ready"
     );
 
-    // 2. Run before_run hook (S9.4: failure = fatal to attempt)
     workspace_mgr
         .before_run_with_id(&workspace.path, &issue.identifier)
         .await?;
 
-    // 3. Render prompt (S12)
     let template = prompt_template.lock().await.clone();
     let prompt = symphony_config::template::render_prompt(&template, issue, attempt)
         .map_err(|e| anyhow::anyhow!("prompt render failed: {e}"))?;
 
-    // 4. Launch agent (S10.1-10.6)
     let runner = if config.tracker.kind == "linear" {
         AgentRunner::with_linear_tool(
             config.codex.clone(),
@@ -510,7 +603,6 @@ async fn run_worker(
         );
     });
 
-    // Use simple (pipe) mode for CLI agents, JSON-RPC mode for app-servers
     let is_app_server = config.codex.command.contains("app-server");
     if is_app_server {
         runner
@@ -540,7 +632,6 @@ async fn run_worker(
             .map_err(|e| anyhow::anyhow!("agent session failed: {e}"))?;
     }
 
-    // 5. Run after_run hook (S9.4: failure logged and ignored)
     workspace_mgr
         .after_run_with_id(&workspace.path, &issue.identifier)
         .await;
@@ -557,10 +648,8 @@ async fn handle_worker_exit(
 ) {
     let mut state = state.lock().await;
 
-    // Remove from running
     let entry = state.running.remove(issue_id);
     if let Some(entry) = &entry {
-        // Add runtime to totals
         let elapsed = Utc::now()
             .signed_duration_since(entry.started_at)
             .num_seconds() as f64;
@@ -571,12 +660,10 @@ async fn handle_worker_exit(
     }
 
     let (attempt, delay) = if normal_exit {
-        // Normal exit → completed set + continuation retry
         state.completed.insert(issue_id.to_string());
         let delay = reconcile::backoff_delay_ms(1, config.agent.max_retry_backoff_ms, true);
         (1, delay)
     } else {
-        // Abnormal exit → exponential backoff
         let prev_attempt = entry
             .as_ref()
             .and_then(|e| e.retry_attempt)
@@ -593,7 +680,6 @@ async fn handle_worker_exit(
         .map(|e| e.identifier.clone())
         .unwrap_or_default();
 
-    // Cancel existing retry timer for same issue (S8.4)
     state.retry_attempts.remove(issue_id);
 
     state.retry_attempts.insert(
@@ -617,7 +703,7 @@ async fn handle_worker_exit(
         attempt = attempt,
         delay_ms = delay,
         normal = normal_exit,
-        "worker exit → scheduled retry"
+        "worker exit: scheduled retry"
     );
 }
 

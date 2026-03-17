@@ -93,6 +93,18 @@ created: 2026-03-06
 | S41 | Token totals use absolute values, not deltas | Unit test: accumulation logic | S13.5 |
 | S42 | Sink failure does not crash orchestrator | Unit test: broken sink → continued | S13.2 |
 
+### Service Hardness (S43-S48)
+| ID | Setpoint | Measurement | Spec |
+|----|----------|-------------|------|
+| S43 | `/healthz` returns 200 always (liveness) | Unit test: healthz_returns_200 | S13.7 |
+| S44 | `/readyz` returns 200 when initialized, 503 otherwise | Unit test: readyz tests | S13.7 |
+| S45 | `symphony stop` triggers graceful shutdown | Integration test: POST /api/v1/shutdown | — |
+| S46 | Bare `symphony` starts daemon (backward compat) | Unit test: None command → Start | — |
+| S47 | Stalled sessions are killed and retried | Unit test: stall detection + abort handle | S8.5 |
+| S48 | SIGTERM/SIGINT triggers clean shutdown with drain | Integration test: signal → drain → stop | — |
+| S49 | Graceful drain waits for in-flight workers | Code review: drain loop in scheduler | — |
+| S50 | Worker abort handles tracked and cleaned up | Code review: cleanup_worker_handles | — |
+
 ---
 
 ## Sensors (How we measure)
@@ -164,6 +176,7 @@ IF phase completed THEN:
 | 2026-03-06 | S2 | Clippy: manual_strip, collapsible_if, needless_borrows, derivable_impls, manual_map | Auto-fixed via `cargo clippy --fix` |
 | 2026-03-06 | S10 | Rust 2024 edition: `set_var`/`remove_var` are unsafe | Wrapped in `unsafe` block in test (justified: single-threaded test context) |
 | 2026-03-16 | S2 | Unused import `PathBuf` in workspace tests | Removed redundant import (already via `use super::*`) |
+| 2026-03-16 | S2 | Clippy: too_many_arguments on Scheduler::new (8 args) | Added `#[allow(clippy::too_many_arguments)]` (justified: constructor groups related subsystems) |
 
 ---
 

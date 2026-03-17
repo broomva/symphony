@@ -1,0 +1,21 @@
+services:
+  symphony:
+    build: .
+    volumes:
+      - ./WORKFLOW.md:/workspace/WORKFLOW.md:ro
+      - workspaces:/workspace/workspaces
+    ports:
+      - "8080:8080"
+    environment:
+      - LINEAR_API_KEY=${LINEAR_API_KEY}
+      - RUST_LOG=info
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  workspaces:
