@@ -1,6 +1,12 @@
 # Stage 1: Build Symphony
-FROM rust:1.85-slim AS builder
+FROM rust:1.88-slim AS builder
 WORKDIR /app
+
+# Reduce memory usage for Railway builds
+ENV CARGO_INCREMENTAL=0
+ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+ENV CARGO_PROFILE_RELEASE_LTO=thin
+
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ crates/
 COPY src/ src/
