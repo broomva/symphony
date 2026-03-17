@@ -11,3 +11,36 @@
 .obsidian/themes/
 .obsidian/hotkeys.json
 .obsidian/core-plugins-migration.json
+
+# Skills CLI — agent symlinks created by `npx skills add`
+# The source skill lives in .claude/skills/symphony/ (tracked)
+# These are auto-generated per-agent symlinks (not tracked)
+.agents/
+.agent/
+.augment/
+.codebuddy/
+.commandcode/
+.continue/
+.cortex/
+.crush/
+.factory/
+.goose/
+.kilocode/
+.kiro/
+.mcpjam/
+.mux/
+.neovate/
+.openhands/
+.pi/
+.qoder/
+.qwen/
+.roo/
+.trae/
+.windsurf/
+.zencoder/
+skills/
+skills-lock.json
+
+# Claude Code worktrees and local state
+.claude/worktrees/
+.claude/ralph-loop.local.md
