@@ -38,15 +38,17 @@ make build    # Release build
 
 ### Tracker Plugins
 
-Symphony currently supports Linear. Adding GitHub Issues, Jira, GitLab, etc. is the highest-impact contribution.
+Symphony supports Linear and GitHub Issues. Adding Jira, GitLab, Asana, etc. is the highest-impact contribution.
 
 To add a tracker:
 
-1. Create a new file in `crates/symphony-tracker/src/` (e.g., `github.rs`)
-2. Implement the `TrackerClient` trait (3 methods: `fetch_candidate_issues`, `fetch_issues_by_states`, `fetch_issue_states_by_ids`)
-3. Add the new `kind` to config validation in `crates/symphony-config/src/loader.rs`
-4. Add tests in the same file under `#[cfg(test)] mod tests`
-5. Add an example workflow in `examples/`
+1. Create a new file in `crates/symphony-tracker/src/` (e.g., `jira.rs`)
+2. Implement the `TrackerClient` trait (4 methods: `fetch_candidate_issues`, `fetch_issues_by_states`, `fetch_issue_states_by_ids`, `set_issue_state`)
+3. Register it in the `create_tracker()` factory in `crates/symphony-tracker/src/lib.rs`
+4. Add the new `kind` to config validation in `crates/symphony-config/src/loader.rs`
+5. Add tests in the same file under `#[cfg(test)] mod tests`
+6. Add an example workflow in `examples/`
+7. Add setpoints to `CONTROL.md` for the new tracker
 
 ### Agent Runner Compatibility
 
@@ -62,6 +64,20 @@ If you get Symphony working with a new agent, add an example workflow.
 - Check the [spec reference](/Users/broomva/Downloads/Symphony%20SPEC.md) for behavioral requirements
 - Add tests for any new logic (tests live in `#[cfg(test)] mod tests` at the bottom of each file)
 - Run `make smoke` before submitting
+
+## Control Metalayer
+
+Symphony uses a **control metalayer** ([[CONTROL]]) as the grounding framework for all development. Before writing code, read the setpoints that your change affects. After writing code, verify those setpoints pass.
+
+The loop:
+1. **CHECK** `CONTROL.md` → which setpoints does your change affect?
+2. **IMPLEMENT** → write code that satisfies those setpoints
+3. **MEASURE** → run `make smoke`
+4. **VERIFY** → all affected setpoints green?
+5. **DOCUMENT** → add new setpoints for new behavior
+6. **FEEDBACK** → log deviations if any setpoint was relaxed
+
+If you add a new feature, add corresponding setpoints to `CONTROL.md`. This keeps the system verifiable across agent sessions and human contributors alike.
 
 ## Code Style
 

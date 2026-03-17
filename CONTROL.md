@@ -14,6 +14,22 @@ created: 2026-03-06
 
 # CONTROL.md - Symphony Control Metalayer
 
+> [!important] This file is the active grounding framework for all development
+> It is NOT a passive checklist. Every agent session, every code change, and every PR must be grounded in these setpoints. Read this before writing code. Update it after adding behavior.
+
+## How to Use This File
+
+This control metalayer drives the development feedback loop:
+
+```
+1. CHECK    → Read the setpoints below. Which ones does your change affect?
+2. IMPLEMENT → Write code that satisfies those setpoints
+3. MEASURE  → Run `make smoke` (sensors below verify setpoints)
+4. VERIFY   → All affected setpoints green? If not, fix before committing
+5. DOCUMENT → Update this file if adding new behavior (new setpoints)
+6. FEEDBACK → Log deviations if any setpoint was temporarily relaxed
+```
+
 > [!info] Operational companion
 > For build commands, test distribution, and deviation history see [[docs/operations/Control Harness|Control Harness]]. For the implementation roadmap these setpoints verify, see [[PLANS]].
 
