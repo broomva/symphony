@@ -27,8 +27,16 @@ pub async fn run_start(args: StartArgs, port_override: Option<u16>) -> anyhow::R
 
     // Load workflow
     let workflow_def = symphony_config::loader::load_workflow(workflow_path)?;
-    let config = symphony_config::loader::extract_config(&workflow_def);
+    let mut config = symphony_config::loader::extract_config(&workflow_def);
     let prompt_template = workflow_def.prompt_template.clone();
+
+    // Apply CLI overrides
+    if let Some(c) = args.concurrency {
+        config.agent.max_concurrent_agents = c;
+    }
+    if let Some(t) = args.turns {
+        config.agent.max_turns = t;
+    }
 
     // Validate config
     if let Err(errors) = symphony_config::loader::validate_dispatch_config(&config) {
@@ -112,7 +120,7 @@ pub async fn run_start(args: StartArgs, port_override: Option<u16>) -> anyhow::R
         let _ = sig_shutdown_tx.send(true);
     });
 
-    // Start scheduler with real tracker, workspace manager, and prompt template
+    // Start scheduler
     let mut scheduler = symphony_orchestrator::Scheduler::new(
         config,
         config_rx,
@@ -123,6 +131,15 @@ pub async fn run_start(args: StartArgs, port_override: Option<u16>) -> anyhow::R
         Some(refresh_rx),
         Some(shutdown_rx),
     );
+
+    // Apply ticket filter and once mode
+    if let Some(tickets) = args.tickets {
+        scheduler.set_ticket_filter(tickets);
+    }
+    if args.once {
+        scheduler.set_once(true);
+    }
+
     scheduler.run().await?;
 
     tracing::info!("symphony stopped");
@@ -149,4 +166,3 @@ async fn shutdown_signal() {
         ctrl_c.await.ok();
     }
 }
-

@@ -28,6 +28,10 @@ pub struct Scheduler {
     refresh_rx: Option<tokio::sync::mpsc::Receiver<()>>,
     shutdown_rx: Option<watch::Receiver<bool>>,
     worker_handles: Arc<StdMutex<HashMap<String, tokio::task::AbortHandle>>>,
+    /// Run a single poll cycle then exit.
+    once: bool,
+    /// Only dispatch these specific ticket identifiers.
+    ticket_filter: Option<Vec<String>>,
 }
 
 impl Scheduler {
@@ -57,7 +61,19 @@ impl Scheduler {
             refresh_rx,
             shutdown_rx,
             worker_handles: Arc::new(StdMutex::new(HashMap::new())),
+            once: false,
+            ticket_filter: None,
         }
+    }
+
+    /// Set once mode: run a single poll cycle then exit.
+    pub fn set_once(&mut self, once: bool) {
+        self.once = once;
+    }
+
+    /// Set ticket filter: only dispatch these specific identifiers.
+    pub fn set_ticket_filter(&mut self, tickets: Vec<String>) {
+        self.ticket_filter = Some(tickets);
     }
 
     /// Run the poll loop. This is the main entry point (Spec Algorithm 16.1).
@@ -96,6 +112,12 @@ impl Scheduler {
 
             // Clean up stale worker abort handles
             self.cleanup_worker_handles().await;
+
+            // Once mode: exit after first tick
+            if self.once {
+                tracing::info!("once mode: single poll cycle complete");
+                break;
+            }
 
             // Sleep for poll interval, but wake early on refresh or shutdown signal
             let interval = config.polling.interval_ms;
@@ -196,6 +218,21 @@ impl Scheduler {
                 return;
             }
         };
+
+        // Apply ticket filter if set
+        if let Some(ref filter) = self.ticket_filter {
+            let before = candidates.len();
+            candidates.retain(|issue| {
+                filter
+                    .iter()
+                    .any(|f| issue.identifier.eq_ignore_ascii_case(f))
+            });
+            tracing::info!(
+                before = before,
+                after = candidates.len(),
+                "applied ticket filter"
+            );
+        }
 
         if candidates.is_empty() {
             tracing::debug!("tick: no candidates, skipping dispatch");
@@ -557,7 +594,7 @@ async fn build_snapshot(state: &Arc<Mutex<OrchestratorState>>) -> OrchestratorSt
 }
 
 /// Run a worker for a single issue: workspace -> hooks -> prompt -> agent.
-async fn run_worker(
+pub async fn run_worker(
     issue: &Issue,
     attempt: Option<u32>,
     config: &ServiceConfig,
@@ -573,7 +610,7 @@ async fn run_worker(
     );
 
     workspace_mgr
-        .before_run_with_id(&workspace.path, &issue.identifier)
+        .before_run_with_issue(&workspace.path, &issue.identifier, &issue.title)
         .await?;
 
     let template = prompt_template.lock().await.clone();
@@ -633,7 +670,7 @@ async fn run_worker(
     }
 
     workspace_mgr
-        .after_run_with_id(&workspace.path, &issue.identifier)
+        .after_run_with_issue(&workspace.path, &issue.identifier, &issue.title)
         .await;
 
     Ok(())

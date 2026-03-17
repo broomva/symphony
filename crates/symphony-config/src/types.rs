@@ -35,6 +35,8 @@ pub struct TrackerConfig {
     pub project_slug: String,
     pub active_states: Vec<String>,
     pub terminal_states: Vec<String>,
+    /// State name to transition issues to after successful agent run.
+    pub done_state: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,6 +92,7 @@ impl Default for TrackerConfig {
                 "Duplicate".into(),
                 "Done".into(),
             ],
+            done_state: None,
         }
     }
 }

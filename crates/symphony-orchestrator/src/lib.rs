@@ -6,4 +6,4 @@ pub mod dispatch;
 pub mod reconcile;
 pub mod scheduler;
 
-pub use scheduler::Scheduler;
+pub use scheduler::{Scheduler, run_worker};

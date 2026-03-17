@@ -9,6 +9,7 @@ pub mod control;
 pub mod issues;
 pub mod logs;
 pub mod output;
+pub mod run;
 pub mod start;
 pub mod status;
 pub mod workspaces;
@@ -61,8 +62,24 @@ pub enum Command {
     Audit,
     /// Run tests with filtering.
     Test(TestArgs),
+    /// Run a single issue one-shot (no daemon loop).
+    Run(RunArgs),
     /// Tail daemon log file.
     Logs(LogsArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct RunArgs {
+    /// Issue identifier (e.g. STI-123).
+    pub identifier: String,
+
+    /// Path to WORKFLOW.md file.
+    #[arg(long, default_value = "WORKFLOW.md")]
+    pub workflow_path: PathBuf,
+
+    /// Max turns (overrides config).
+    #[arg(long)]
+    pub turns: Option<u32>,
 }
 
 #[derive(clap::Args, Debug)]
@@ -74,6 +91,22 @@ pub struct StartArgs {
     /// Log file path (defaults to stderr).
     #[arg(long)]
     pub log_file: Option<PathBuf>,
+
+    /// Max concurrent agents (overrides config).
+    #[arg(long, short)]
+    pub concurrency: Option<u32>,
+
+    /// Max turns per issue (overrides config).
+    #[arg(long)]
+    pub turns: Option<u32>,
+
+    /// Run a single poll cycle then exit.
+    #[arg(long)]
+    pub once: bool,
+
+    /// Only process these specific tickets (comma-separated).
+    #[arg(long, value_delimiter = ',')]
+    pub tickets: Option<Vec<String>>,
 }
 
 impl Default for StartArgs {
@@ -81,6 +114,10 @@ impl Default for StartArgs {
         Self {
             workflow_path: PathBuf::from("WORKFLOW.md"),
             log_file: None,
+            concurrency: None,
+            turns: None,
+            once: false,
+            tickets: None,
         }
     }
 }
@@ -156,6 +193,7 @@ const SUBCOMMANDS: &[&str] = &[
     "check",
     "audit",
     "test",
+    "run",
     "logs",
     "help",
 ];

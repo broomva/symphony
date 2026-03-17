@@ -111,13 +111,16 @@ pub fn extract_config(def: &WorkflowDefinition) -> ServiceConfig {
             config.tracker.kind = kind;
         }
         if let Some(endpoint) = get_str(tracker, "endpoint") {
-            config.tracker.endpoint = endpoint;
+            config.tracker.endpoint = resolve_env(&endpoint);
         }
         if let Some(api_key) = get_str(tracker, "api_key") {
             config.tracker.api_key = resolve_env(&api_key);
         }
         if let Some(slug) = get_str(tracker, "project_slug") {
-            config.tracker.project_slug = slug;
+            config.tracker.project_slug = resolve_env(&slug);
+        }
+        if let Some(done_state) = get_str(tracker, "done_state") {
+            config.tracker.done_state = Some(resolve_env(&done_state));
         }
         if let Some(states) = get_string_list(tracker, "active_states") {
             config.tracker.active_states = states;
@@ -218,7 +221,7 @@ fn extract_agent(v: &serde_yaml::Value) -> AgentConfig {
 fn extract_codex(v: &serde_yaml::Value) -> CodexConfig {
     let mut codex = CodexConfig::default();
     if let Some(cmd) = get_str(v, "command") {
-        codex.command = cmd;
+        codex.command = resolve_env(&cmd);
     }
     if let Some(s) = get_str(v, "approval_policy") {
         codex.approval_policy = Some(s);

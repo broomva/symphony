@@ -103,12 +103,26 @@ impl WorkspaceManager {
         workspace_path: &Path,
         identifier: &str,
     ) -> Result<(), WorkspaceError> {
+        self.before_run_with_issue(workspace_path, identifier, "")
+            .await
+    }
+
+    /// Run the before_run hook with issue identifier and title. Failure aborts the attempt (S9.4).
+    pub async fn before_run_with_issue(
+        &self,
+        workspace_path: &Path,
+        identifier: &str,
+        title: &str,
+    ) -> Result<(), WorkspaceError> {
         if let Some(hook) = &self.hooks.before_run {
             run_hook_with_env(
                 hook,
                 workspace_path,
                 self.hooks.timeout_ms,
-                &[("SYMPHONY_ISSUE_ID", identifier)],
+                &[
+                    ("SYMPHONY_ISSUE_ID", identifier),
+                    ("SYMPHONY_ISSUE_TITLE", title),
+                ],
             )
             .await?;
         }
@@ -122,12 +136,26 @@ impl WorkspaceManager {
 
     /// Run the after_run hook with issue identifier. Failure is logged and ignored (S9.4).
     pub async fn after_run_with_id(&self, workspace_path: &Path, identifier: &str) {
+        self.after_run_with_issue(workspace_path, identifier, "")
+            .await;
+    }
+
+    /// Run the after_run hook with issue identifier and title. Failure is logged and ignored (S9.4).
+    pub async fn after_run_with_issue(
+        &self,
+        workspace_path: &Path,
+        identifier: &str,
+        title: &str,
+    ) {
         if let Some(hook) = &self.hooks.after_run
             && let Err(e) = run_hook_with_env(
                 hook,
                 workspace_path,
                 self.hooks.timeout_ms,
-                &[("SYMPHONY_ISSUE_ID", identifier)],
+                &[
+                    ("SYMPHONY_ISSUE_ID", identifier),
+                    ("SYMPHONY_ISSUE_TITLE", title),
+                ],
             )
             .await
         {

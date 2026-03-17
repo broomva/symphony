@@ -79,6 +79,10 @@ async fn run_command(
         Command::Test(args) => {
             cli::control::run_test(args.crate_name.as_deref()).await
         }
+        Command::Run(args) => {
+            symphony_observability::init_logging();
+            cli::run::run_run(args).await
+        }
         Command::Logs(args) => cli::logs::run_logs(&args).await,
     }
 }
