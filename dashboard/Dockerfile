@@ -31,5 +31,5 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-WORKDIR /app/apps/web
-CMD ["bunx", "next", "start", "-H", "0.0.0.0"]
+WORKDIR /app
+CMD ["sh", "-c", "cd apps/web && ../../node_modules/.bin/next start -H 0.0.0.0 -p ${PORT:-3000}"]
