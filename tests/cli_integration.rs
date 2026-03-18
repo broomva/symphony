@@ -301,3 +301,62 @@ fn cli_run_missing_workflow_fails() {
         .assert()
         .failure();
 }
+
+// ── Doctor ──
+
+#[test]
+fn cli_doctor_help_shows_preflight() {
+    symphony()
+        .args(["doctor", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Pre-flight"));
+}
+
+// ── Logs flags ──
+
+#[test]
+fn cli_logs_help_shows_level_and_since() {
+    symphony()
+        .args(["logs", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--level"))
+        .stdout(predicate::str::contains("--since"));
+}
+
+// ── Workspace clean ──
+
+#[test]
+fn cli_workspace_clean_nonexistent() {
+    let dir = TempDir::new().unwrap();
+    let wf = dir.path().join("WORKFLOW.md");
+    fs::write(
+        &wf,
+        r#"---
+tracker:
+  kind: linear
+  api_key: test-key
+  project_slug: test
+workspace:
+  root: /tmp/symphony-test-ws-nonexistent
+codex:
+  command: echo
+---
+Prompt
+"#,
+    )
+    .unwrap();
+
+    symphony()
+        .args([
+            "workspace",
+            "TEST-999",
+            "--clean",
+            "--workflow-path",
+            wf.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("not found"));
+}

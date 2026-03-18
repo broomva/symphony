@@ -70,7 +70,14 @@ async fn run_command(
         Command::Refresh => cli::issues::run_refresh(&conn).await,
         Command::Workspaces => cli::workspaces::run_workspaces(&conn, format).await,
         Command::Workspace(args) => {
-            cli::workspaces::run_workspace(&args.identifier, args.clean, &conn, format).await
+            cli::workspaces::run_workspace(
+                &args.identifier,
+                args.clean,
+                &args.workflow_path,
+                &conn,
+                format,
+            )
+            .await
         }
         Command::Validate(args) => cli::control::run_validate(&args.workflow_path, format).await,
         Command::Config(args) => cli::config_cmd::run_config(&args.workflow_path, format).await,
@@ -86,6 +93,7 @@ async fn run_command(
             cli::init::run_init(&args)?;
             Ok(())
         }
+        Command::Doctor => cli::doctor::run_doctor(&conn).await,
     }
 }
 

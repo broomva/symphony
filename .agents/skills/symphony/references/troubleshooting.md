@@ -61,6 +61,25 @@ after_run: |
 mkdir -p ~/symphony-workspaces/project
 ```
 
+### Arcan daemon unreachable
+**Cause**: `runtime.kind: arcan` configured but Arcan daemon not running.
+**Fix**: Start the Arcan daemon or verify `runtime.base_url` in WORKFLOW.md:
+```bash
+curl http://localhost:3000/health   # should return 200
+# If using a different URL:
+# runtime:
+#   kind: arcan
+#   base_url: http://your-host:3000
+```
+
+### Pre-flight check failures
+**Cause**: Missing binaries, env vars, or config.
+**Fix**: Run `symphony doctor` for a full pre-flight diagnostic:
+```bash
+symphony doctor
+# Checks: WORKFLOW.md, env vars, binaries (claude, gh, git), daemon connectivity
+```
+
 ## Monitoring
 
 ### HTTP Dashboard

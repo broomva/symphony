@@ -56,20 +56,43 @@ pub async fn run_workspaces(conn: &ConnOpts, format: OutputFormat) -> anyhow::Re
 pub async fn run_workspace(
     identifier: &str,
     clean: bool,
+    workflow_path: &std::path::Path,
     conn: &ConnOpts,
     format: OutputFormat,
 ) -> anyhow::Result<()> {
     let client = conn.client();
 
     if clean {
-        if !client.is_running().await {
-            eprintln!("daemon not running ({})", conn.target());
-            std::process::exit(1);
+        // Load workflow locally to find workspace root
+        match symphony_config::loader::load_workflow(workflow_path) {
+            Ok(def) => {
+                let config = symphony_config::loader::extract_config(&def);
+                let ws_root = config.workspace.root;
+                // Normalize identifier for path (same as orchestrator)
+                let safe_id: String = identifier
+                    .chars()
+                    .map(|c| {
+                        if c.is_alphanumeric() || c == '.' || c == '_' || c == '-' {
+                            c
+                        } else {
+                            '_'
+                        }
+                    })
+                    .collect();
+                let ws_path = ws_root.join(&safe_id);
+                if ws_path.exists() {
+                    std::fs::remove_dir_all(&ws_path)?;
+                    println!("Removed workspace: {}", ws_path.display());
+                } else {
+                    println!("Workspace not found: {}", ws_path.display());
+                }
+            }
+            Err(e) => {
+                eprintln!("Cannot resolve workspace root: {e}");
+                eprintln!("Provide --workflow-path pointing to your WORKFLOW.md");
+                std::process::exit(1);
+            }
         }
-        println!("Workspace cleanup for '{identifier}' requested.");
-        println!(
-            "Note: Use the daemon's terminal cleanup or manually remove the workspace directory."
-        );
         return Ok(());
     }
 

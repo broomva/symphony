@@ -169,6 +169,11 @@ pub fn extract_config(def: &WorkflowDefinition) -> ServiceConfig {
         config.server_port = Some(port as u16);
     }
 
+    // Runtime
+    if let Some(runtime) = map.get(serde_yaml::Value::String("runtime".into())) {
+        config.runtime = extract_runtime(runtime);
+    }
+
     config
 }
 
@@ -253,6 +258,28 @@ fn extract_codex(v: &serde_yaml::Value) -> CodexConfig {
         codex.stall_timeout_ms = n;
     }
     codex
+}
+
+fn extract_runtime(v: &serde_yaml::Value) -> crate::types::RuntimeConfig {
+    let mut runtime = crate::types::RuntimeConfig::default();
+    if let Some(kind) = get_str(v, "kind") {
+        runtime.kind = kind;
+    }
+    if let Some(base_url) = get_str(v, "base_url") {
+        runtime.base_url = resolve_env(&base_url);
+    }
+    if let Some(policy) = v
+        .as_mapping()
+        .and_then(|m| m.get(serde_yaml::Value::String("policy".into())))
+    {
+        if let Some(allow) = get_string_list(policy, "allow_capabilities") {
+            runtime.policy.allow_capabilities = allow;
+        }
+        if let Some(gate) = get_string_list(policy, "gate_capabilities") {
+            runtime.policy.gate_capabilities = gate;
+        }
+    }
+    runtime
 }
 
 // YAML value helpers
