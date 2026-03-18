@@ -11,21 +11,12 @@ RUN bun install
 
 # Build the application
 FROM base AS builder
+WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build args for Next.js static generation
-ARG DATABASE_URL
-ARG AUTH_SECRET
-ARG SYMPHONY_API_URL=http://localhost:8080
-ARG SYMPHONY_API_TOKEN
-ARG APP_URL
-
-ENV DATABASE_URL=${DATABASE_URL}
-ENV AUTH_SECRET=${AUTH_SECRET}
-ENV SYMPHONY_API_URL=${SYMPHONY_API_URL}
-ENV SYMPHONY_API_TOKEN=${SYMPHONY_API_TOKEN}
-ENV APP_URL=${APP_URL}
+# Skip env validation during build — env vars only available at runtime
+ENV SKIP_ENV_VALIDATION=1
 
 RUN bun run build
 
@@ -34,7 +25,6 @@ FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Copy built app and dependencies
 COPY --from=builder /app ./
 
 EXPOSE 3000
