@@ -1,6 +1,4 @@
-# Symphony Dashboard — multi-stage Docker build
-# For Railway / self-hosted deployment
-
+# Symphony Dashboard — Docker build for Railway
 FROM oven/bun:1.3 AS base
 WORKDIR /app
 
@@ -9,15 +7,14 @@ FROM base AS deps
 COPY package.json bun.lock ./
 COPY apps/web/package.json ./apps/web/
 COPY packages/symphony-client/package.json ./packages/symphony-client/
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # Build the application
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY . .
 
-# Build args become env vars for Next.js build
+# Build args for Next.js static generation
 ARG DATABASE_URL
 ARG AUTH_SECRET
 ARG SYMPHONY_API_URL=http://localhost:8080
@@ -32,23 +29,16 @@ ENV APP_URL=${APP_URL}
 
 RUN bun run build
 
-# Production image
+# Production runner
 FROM base AS runner
 WORKDIR /app
-
 ENV NODE_ENV=production
 
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
-
-COPY --from=builder /app/apps/web/.next/standalone ./
-COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder /app/apps/web/public ./apps/web/public
-
-USER nextjs
+# Copy built app and dependencies
+COPY --from=builder /app ./
 
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "apps/web/server.js"]
+CMD ["bun", "run", "start"]
