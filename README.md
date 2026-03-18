@@ -182,7 +182,7 @@ Open `http://localhost:8080` for a live HTML dashboard showing running/retrying 
 
 ## Architecture
 
-Rust workspace with 7 crates:
+Rust workspace with 8 crates:
 
 | Crate | Responsibility |
 |-------|---------------|
@@ -193,6 +193,11 @@ Rust workspace with 7 crates:
 | `symphony-agent` | Coding agent subprocess management (CLI pipe + JSON-RPC modes) |
 | `symphony-orchestrator` | Poll loop, dispatch, reconciliation, retry queue |
 | `symphony-observability` | Structured logging, HTTP dashboard + REST API |
+| `symphony-arcan` | Arcan runtime adapter — bridges Symphony to the Agent OS stack |
+
+### Dashboard
+
+A separate TypeScript/React dashboard lives in `dashboard/` (Turborepo, Bun). It provides a web UI for monitoring Symphony orchestrator state, issues, and agent sessions.
 
 ### Key Features
 
