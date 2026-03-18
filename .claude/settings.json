@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/broomva/broomva/core/symphony/scripts/conversation-bridge-hook.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
