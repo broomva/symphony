@@ -19,8 +19,14 @@ pub async fn run_status(conn: &ConnOpts, format: OutputFormat) -> anyhow::Result
         Err(e) => return Err(e.into()),
     };
 
+    // Best-effort metrics fetch (daemon may not support it yet)
+    let metrics = client.get_metrics().await.ok();
+
     if format == OutputFormat::Json {
-        let json = serde_json::to_value(&state)?;
+        let mut json = serde_json::to_value(&state)?;
+        if let Some(m) = &metrics {
+            json["metrics"] = m.clone();
+        }
         output::print_json(&json);
         return Ok(());
     }
@@ -31,6 +37,14 @@ pub async fn run_status(conn: &ConnOpts, format: OutputFormat) -> anyhow::Result
     output::print_kv("Running:", &state.counts.running.to_string());
     output::print_kv("Retrying:", &state.counts.retrying.to_string());
     output::print_kv(
+        "Input tokens:",
+        &state.codex_totals.input_tokens.to_string(),
+    );
+    output::print_kv(
+        "Output tokens:",
+        &state.codex_totals.output_tokens.to_string(),
+    );
+    output::print_kv(
         "Total tokens:",
         &state.codex_totals.total_tokens.to_string(),
     );
@@ -38,6 +52,18 @@ pub async fn run_status(conn: &ConnOpts, format: OutputFormat) -> anyhow::Result
         "Runtime:",
         &format!("{:.1}s", state.codex_totals.seconds_running),
     );
+
+    // Show config from metrics if available
+    if let Some(m) = &metrics
+        && let Some(config) = m.get("config")
+    {
+        if let Some(poll) = config.get("poll_interval_ms") {
+            output::print_kv("Poll interval:", &format!("{}ms", poll));
+        }
+        if let Some(max) = config.get("max_concurrent_agents") {
+            output::print_kv("Max concurrent:", &max.to_string());
+        }
+    }
 
     if !state.running.is_empty() {
         println!("\nRunning Issues:");

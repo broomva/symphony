@@ -13,9 +13,13 @@
 .obsidian/core-plugins-migration.json
 
 # Skills CLI — agent symlinks created by `npx skills add`
-# The source skill lives in .claude/skills/symphony/ (tracked)
+# The canonical skill source lives in .agents/skills/symphony/ (tracked)
+# .claude/skills/symphony is a symlink → ../../.agents/skills/symphony
 # These are auto-generated per-agent symlinks (not tracked)
-.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/symphony/
 .agent/
 .augment/
 .codebuddy/
@@ -38,7 +42,7 @@
 .trae/
 .windsurf/
 .zencoder/
-skills/
+/skills/
 skills-lock.json
 
 # Claude Code worktrees and local state

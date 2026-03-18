@@ -127,6 +127,25 @@ impl SymphonyClient {
             .map_err(|e| ClientError::Parse(e.to_string()))
     }
 
+    /// GET /api/v1/metrics — usage metrics.
+    pub async fn get_metrics(&self) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .request(reqwest::Method::GET, "/api/v1/metrics")
+            .send()
+            .await
+            .map_err(|e| ClientError::Connection(e.to_string()))?;
+        let status = resp.status();
+        if status.as_u16() == 401 {
+            return Err(ClientError::Unauthorized);
+        }
+        if !status.is_success() {
+            return Err(ClientError::Http(status.as_u16(), status.to_string()));
+        }
+        resp.json()
+            .await
+            .map_err(|e| ClientError::Parse(e.to_string()))
+    }
+
     /// GET /api/v1/workspaces — list workspaces.
     pub async fn get_workspaces(&self) -> Result<serde_json::Value, ClientError> {
         let resp = self

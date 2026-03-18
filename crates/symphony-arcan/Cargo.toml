@@ -1,0 +1,22 @@
+[package]
+name = "symphony-arcan"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Arcan runtime adapter for Symphony — replaces CLI subprocess spawning with Arcan HTTP sessions"
+
+[dependencies]
+symphony-core.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+wiremock = "0.6"
+tokio = { workspace = true, features = ["full"] }

@@ -169,15 +169,39 @@ async fn auth_middleware(State(state): State<AppState>, request: Request, next: 
 async fn dashboard(State(state): State<AppState>) -> Html<String> {
     let snapshot = state.orchestrator.lock().await;
 
-    let (running_count, retrying_count, totals) = match snapshot.as_ref() {
-        Some(s) => (s.running.len(), s.retry_attempts.len(), &s.codex_totals),
-        None => {
-            return Html(
-                "<html><body><h1>Symphony Dashboard</h1><p>Initializing...</p></body></html>"
-                    .into(),
-            );
-        }
-    };
+    let (running_count, retrying_count, totals, retrying_rows, poll_ms, max_conc) =
+        match snapshot.as_ref() {
+            Some(s) => {
+                let retrying: String = s
+                    .retry_attempts
+                    .values()
+                    .map(|r| {
+                        format!(
+                            "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                            r.identifier,
+                            r.attempt,
+                            r.due_at_ms,
+                            r.error.as_deref().unwrap_or("-")
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                (
+                    s.running.len(),
+                    s.retry_attempts.len(),
+                    &s.codex_totals,
+                    retrying,
+                    s.poll_interval_ms,
+                    s.max_concurrent_agents,
+                )
+            }
+            None => {
+                return Html(
+                    "<html><body><h1>Symphony Dashboard</h1><p>Initializing...</p></body></html>"
+                        .into(),
+                );
+            }
+        };
 
     let running_rows: String = snapshot
         .as_ref()
@@ -201,23 +225,32 @@ async fn dashboard(State(state): State<AppState>) -> Html<String> {
     Html(format!(
         r#"<html>
 <head><title>Symphony Dashboard</title>
+<meta http-equiv="refresh" content="5">
 <style>body {{ font-family: system-ui; max-width: 800px; margin: 40px auto; padding: 0 20px; }}
-table {{ border-collapse: collapse; width: 100%; }} th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+table {{ border-collapse: collapse; width: 100%; margin-bottom: 20px; }} th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
 th {{ background-color: #f4f4f4; }} .stat {{ display: inline-block; margin: 10px 20px 10px 0; }}</style>
 </head>
 <body>
 <h1>Symphony Dashboard</h1>
 <div><span class="stat"><b>Running:</b> {running_count}</span>
 <span class="stat"><b>Retrying:</b> {retrying_count}</span>
-<span class="stat"><b>Total tokens:</b> {total}</span>
+<span class="stat"><b>Tokens:</b> {input_tokens} in / {output_tokens} out / {total_tokens} total</span>
 <span class="stat"><b>Runtime:</b> {runtime:.1}s</span></div>
+<div><span class="stat"><b>Poll interval:</b> {poll_ms}ms</span>
+<span class="stat"><b>Max concurrent:</b> {max_conc}</span></div>
 <h2>Active Sessions</h2>
 <table><tr><th>Identifier</th><th>State</th><th>Session</th><th>Turns</th></tr>
 {running_rows}
 </table>
+<h2>Retrying Issues</h2>
+<table><tr><th>Identifier</th><th>Attempt</th><th>Due At</th><th>Error</th></tr>
+{retrying_rows}
+</table>
 <p><em>Generated at {time}</em></p>
 </body></html>"#,
-        total = totals.total_tokens,
+        input_tokens = totals.input_tokens,
+        output_tokens = totals.output_tokens,
+        total_tokens = totals.total_tokens,
         runtime = totals.seconds_running,
         time = chrono::Utc::now().to_rfc3339()
     ))
@@ -961,5 +994,32 @@ mod tests {
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn dashboard_contains_auto_refresh() {
+        let state = make_app_state();
+        let app = build_router(state);
+        let req = Request::builder().uri("/").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 1_000_000)
+            .await
+            .unwrap();
+        let text = std::str::from_utf8(&body).unwrap();
+        assert!(text.contains(r#"meta http-equiv="refresh" content="5""#));
+    }
+
+    #[tokio::test]
+    async fn dashboard_contains_retrying_table() {
+        let state = make_app_state();
+        let app = build_router(state);
+        let req = Request::builder().uri("/").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 1_000_000)
+            .await
+            .unwrap();
+        let text = std::str::from_utf8(&body).unwrap();
+        assert!(text.contains("Retrying Issues"));
+        assert!(text.contains("<th>Attempt</th>"));
     }
 }

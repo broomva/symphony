@@ -620,56 +620,84 @@ pub async fn run_worker(
     let prompt = symphony_config::template::render_prompt(&template, issue, attempt)
         .map_err(|e| anyhow::anyhow!("prompt render failed: {e}"))?;
 
-    let runner = if config.tracker.kind == "linear" {
-        AgentRunner::with_linear_tool(
-            config.codex.clone(),
-            LinearToolConfig {
-                endpoint: config.tracker.endpoint.clone(),
-                api_key: config.tracker.api_key.clone(),
+    // Branch on runtime kind: "arcan" dispatches via Arcan HTTP, default uses subprocess
+    if config.runtime.kind == "arcan" {
+        let arcan_config = symphony_arcan::runner::ArcanRuntimeConfig {
+            base_url: config.runtime.base_url.clone(),
+            policy: if config.runtime.policy.allow_capabilities.is_empty() {
+                None
+            } else {
+                Some(symphony_arcan::runner::ArcanPolicyConfig {
+                    allow_capabilities: config.runtime.policy.allow_capabilities.clone(),
+                    gate_capabilities: config.runtime.policy.gate_capabilities.clone(),
+                })
             },
-        )
-    } else {
-        AgentRunner::new(config.codex.clone())
-    };
-
-    let identifier = issue.identifier.clone();
-    let max_turns = config.agent.max_turns;
-
-    let on_event: symphony_agent::EventCallback = Box::new(move |event| {
-        tracing::info!(
-            identifier = %identifier,
-            event = ?event,
-            "agent event"
-        );
-    });
-
-    let is_app_server = config.codex.command.contains("app-server");
-    if is_app_server {
-        runner
+            timeout_secs: config.codex.turn_timeout_ms / 1000,
+        };
+        let arcan_runner = symphony_arcan::runner::ArcanAgentRunner::new(arcan_config);
+        arcan_runner
             .run_session(
                 &workspace.path,
                 &prompt,
                 &issue.identifier,
                 &issue.title,
                 attempt,
-                max_turns,
-                &on_event,
+                config.agent.max_turns,
             )
             .await
-            .map_err(|e| anyhow::anyhow!("agent session failed: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("arcan agent session failed: {e}"))?;
     } else {
-        runner
-            .run_simple_session(
-                &workspace.path,
-                &prompt,
-                &issue.identifier,
-                &issue.title,
-                attempt,
-                max_turns,
-                &on_event,
+        let runner = if config.tracker.kind == "linear" {
+            AgentRunner::with_linear_tool(
+                config.codex.clone(),
+                LinearToolConfig {
+                    endpoint: config.tracker.endpoint.clone(),
+                    api_key: config.tracker.api_key.clone(),
+                },
             )
-            .await
-            .map_err(|e| anyhow::anyhow!("agent session failed: {e}"))?;
+        } else {
+            AgentRunner::new(config.codex.clone())
+        };
+
+        let identifier = issue.identifier.clone();
+        let max_turns = config.agent.max_turns;
+
+        let on_event: symphony_agent::EventCallback = Box::new(move |event| {
+            tracing::info!(
+                identifier = %identifier,
+                event = ?event,
+                "agent event"
+            );
+        });
+
+        let is_app_server = config.codex.command.contains("app-server");
+        if is_app_server {
+            runner
+                .run_session(
+                    &workspace.path,
+                    &prompt,
+                    &issue.identifier,
+                    &issue.title,
+                    attempt,
+                    max_turns,
+                    &on_event,
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("agent session failed: {e}"))?;
+        } else {
+            runner
+                .run_simple_session(
+                    &workspace.path,
+                    &prompt,
+                    &issue.identifier,
+                    &issue.title,
+                    attempt,
+                    max_turns,
+                    &on_event,
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("agent session failed: {e}"))?;
+        }
     }
 
     workspace_mgr

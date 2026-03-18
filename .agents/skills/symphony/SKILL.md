@@ -39,8 +39,17 @@ symphony start WORKFLOW.md              # run daemon
 | `symphony stop` | Graceful shutdown |
 | `symphony validate WORKFLOW.md` | Validate config + template |
 | `symphony config WORKFLOW.md` | Show resolved config |
+| `symphony logs [--follow] [--level LEVEL] [--since TIME]` | Tail daemon log file (filter by level/time) |
+| `symphony workspaces` | List workspace directories |
+| `symphony workspace STI-123 [--clean]` | Show/manage a workspace |
+| `symphony check` | Run `make smoke` equivalent |
+| `symphony audit` | Full control audit |
+| `symphony test [--crate-name NAME]` | Run tests with filtering |
+| `symphony doctor` | Pre-flight environment check |
 
 Flags: `--port`, `--host`, `--token`, `--format json`, `--concurrency`, `--turns`, `--once`, `--tickets STI-1,STI-2`
+
+> `--format json` is supported by: `status`, `issues`, `workspaces`, `workspace`, `config`.
 
 ## WORKFLOW.md
 
@@ -85,6 +94,23 @@ Set up: create `CONTROL.md` with setpoints, add sensors in `Makefile`, reference
 ## Extending
 
 Implement `TrackerClient` trait (4 methods: `fetch_candidate_issues`, `fetch_issues_by_states`, `fetch_issue_states_by_ids`, `set_issue_state`). Register in `create_tracker()` factory.
+
+## Arcan Runtime
+
+When `runtime.kind: arcan` is configured, Symphony dispatches work through the Arcan HTTP daemon instead of spawning local subprocesses.
+
+```yaml
+runtime:
+  kind: arcan
+  base_url: http://localhost:3000    # Arcan daemon URL
+  policy:
+    allow_capabilities: [read, write, shell]
+    gate_capabilities: [network]
+```
+
+**Flow:** health check (`GET /health`) → create session (`POST /sessions`) → execute run (`POST /sessions/{id}/runs`) → poll state until complete.
+
+Arcan session IDs follow the pattern `symphony-{issue_identifier}`.
 
 ## Key Environment Variables
 

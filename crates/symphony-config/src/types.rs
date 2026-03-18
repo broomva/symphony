@@ -25,6 +25,9 @@ pub struct ServiceConfig {
     pub hooks: HooksConfig,
     pub agent: AgentConfig,
     pub codex: CodexConfig,
+    /// Runtime configuration for agent execution (subprocess vs. Arcan).
+    #[serde(default)]
+    pub runtime: RuntimeConfig,
     /// Extension: optional HTTP server port.
     pub server_port: Option<u16>,
 }
@@ -82,6 +85,35 @@ pub struct CodexConfig {
     pub turn_timeout_ms: u64,
     pub read_timeout_ms: u64,
     pub stall_timeout_ms: i64,
+}
+
+/// Runtime configuration for agent execution.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RuntimeConfig {
+    /// Runtime kind: "subprocess" (default) or "arcan"
+    #[serde(default = "default_runtime_kind")]
+    pub kind: String,
+    /// Base URL for the Arcan daemon (only used when kind = "arcan")
+    #[serde(default = "default_arcan_url")]
+    pub base_url: String,
+    /// Policy for Arcan sessions
+    #[serde(default)]
+    pub policy: RuntimePolicyConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RuntimePolicyConfig {
+    #[serde(default)]
+    pub allow_capabilities: Vec<String>,
+    #[serde(default)]
+    pub gate_capabilities: Vec<String>,
+}
+
+fn default_runtime_kind() -> String {
+    "subprocess".to_string()
+}
+fn default_arcan_url() -> String {
+    "http://localhost:3000".to_string()
 }
 
 impl Default for TrackerConfig {

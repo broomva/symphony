@@ -9,6 +9,7 @@
 pub mod client;
 pub mod config_cmd;
 pub mod control;
+pub mod doctor;
 pub mod init;
 pub mod issues;
 pub mod logs;
@@ -80,6 +81,8 @@ pub enum Command {
     Logs(LogsArgs),
     /// Initialize a WORKFLOW.md in the current directory.
     Init(InitArgs),
+    /// Pre-flight environment check.
+    Doctor,
 }
 
 #[derive(clap::Args, Debug)]
@@ -149,6 +152,9 @@ pub struct WorkspaceArgs {
     /// Remove workspace directory.
     #[arg(long)]
     pub clean: bool,
+    /// Path to WORKFLOW.md (used with --clean to resolve workspace root locally).
+    #[arg(long, default_value = "WORKFLOW.md")]
+    pub workflow_path: std::path::PathBuf,
 }
 
 #[derive(clap::Args, Debug)]
@@ -180,6 +186,12 @@ pub struct LogsArgs {
     /// Filter by issue identifier.
     #[arg(long)]
     pub id: Option<String>,
+    /// Filter by log level (e.g. info, warn, error).
+    #[arg(long)]
+    pub level: Option<String>,
+    /// Show logs since time (e.g. "5m", "1h", "30s" or ISO 8601).
+    #[arg(long)]
+    pub since: Option<String>,
     /// Log file path.
     #[arg(default_value = "~/.symphony/symphony.log")]
     pub path: String,
@@ -246,6 +258,7 @@ const SUBCOMMANDS: &[&str] = &[
     "run",
     "logs",
     "init",
+    "doctor",
     "help",
 ];
 
@@ -395,6 +408,12 @@ mod tests {
     fn parse_refresh() {
         let cli = Cli::parse_from(["symphony", "refresh"]);
         assert!(matches!(cli.command, Some(Command::Refresh)));
+    }
+
+    #[test]
+    fn parse_doctor() {
+        let cli = Cli::parse_from(["symphony", "doctor"]);
+        assert!(matches!(cli.command, Some(Command::Doctor)));
     }
 
     // S46: backward compat — bare `symphony` starts daemon
