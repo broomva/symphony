@@ -15,6 +15,7 @@ use axum::{Json, Router, routing::get};
 use serde::Serialize;
 use symphony_core::OrchestratorState;
 use tokio::sync::Mutex;
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
 /// Shared state for the HTTP server.
 #[derive(Clone)]
@@ -92,6 +93,29 @@ pub struct ErrorDetail {
     pub message: String,
 }
 
+/// Build CORS layer from environment.
+///
+/// - `SYMPHONY_CORS_ORIGINS` — comma-separated allowed origins (e.g. `http://localhost:3000,https://app.example.com`)
+/// - If unset, defaults to permissive `Any` for development convenience.
+fn build_cors_layer() -> CorsLayer {
+    match std::env::var("SYMPHONY_CORS_ORIGINS") {
+        Ok(origins) if !origins.is_empty() => {
+            let parsed: Vec<_> = origins
+                .split(',')
+                .filter_map(|o| o.trim().parse().ok())
+                .collect();
+            CorsLayer::new()
+                .allow_origin(AllowOrigin::list(parsed))
+                .allow_methods(Any)
+                .allow_headers(Any)
+        }
+        _ => CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any),
+    }
+}
+
 /// Build the HTTP router (S13.7).
 pub fn build_router(state: AppState) -> Router {
     // API routes — protected by optional bearer token auth
@@ -120,6 +144,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/readyz", get(readyz))
         .route("/metrics", get(get_prometheus_metrics))
         .merge(api_routes)
+        .layer(build_cors_layer())
         .with_state(state)
 }
 
@@ -976,6 +1001,22 @@ mod tests {
         assert!(text.contains("symphony_tokens_total"));
         assert!(text.contains("# TYPE symphony_sessions_running gauge"));
         assert!(text.contains("symphony_issues_completed"));
+    }
+
+    #[tokio::test]
+    async fn cors_preflight_returns_headers() {
+        let state = make_app_state();
+        let app = build_router(state);
+        let req = Request::builder()
+            .method("OPTIONS")
+            .uri("/api/v1/state")
+            .header("origin", "http://localhost:3000")
+            .header("access-control-request-method", "GET")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert!(resp.headers().contains_key("access-control-allow-origin"));
+        assert!(resp.headers().contains_key("access-control-allow-methods"));
     }
 
     #[tokio::test]

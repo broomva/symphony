@@ -1,0 +1,73 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+node_modules
+.pnp
+.pnp.js
+
+# testing
+coverage
+
+# next.js
+.next/
+apps/*/.next/
+out/
+build
+next-env.d.ts
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# local env files
+.env.local
+.neon-branch
+.env.development.local
+.env.test.local
+.env.production.local
+
+# turbo
+.turbo
+
+.env
+.vercel
+.env*.local
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/*
+apps/*/test-results/
+apps/*/playwright-report/
+apps/*/blob-report/
+apps/*/playwright/*
+
+tsconfig.tsbuildinfo
+
+packages/*/dist
+packages/cli/templates
+templates
+
+# Evalite DB
+evals/db/
+apps/*/evals/db/
+
+# Neon
+.neon
+
+/.skillz
+/AGENTS.md
+/AGENTS.md.bak
+/CLAUDE.md
+/CLAUDE.md.bak
+# END Skiller Generated Files
+.devtools
+
+.cursor/hooks/state
