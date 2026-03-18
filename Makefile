@@ -1,4 +1,4 @@
-.PHONY: smoke check test build clean clippy fmt publish publish-dry-run install changelog release harness-audit entropy-check control-refresh control-validate conversations eval-run eval-check eval-rollback
+.PHONY: smoke check test build clean clippy fmt publish publish-dry-run install changelog release harness-audit entropy-check control-refresh control-validate conversations eval-run eval-check eval-rollback dashboard-install dashboard-dev dashboard-build
 
 # === GATES ===
 
@@ -93,6 +93,17 @@ release: smoke
 	@echo ""
 	@echo "Release v$(VERSION) ready. Push with:"
 	@echo "  git push origin master v$(VERSION)"
+
+# === DASHBOARD ===
+
+dashboard-install:
+	cd dashboard && bun install
+
+dashboard-dev: dashboard-install
+	cd dashboard && bun run dev
+
+dashboard-build: dashboard-install
+	cd dashboard && bun run build
 
 # === CONTROL AUDIT ===
 

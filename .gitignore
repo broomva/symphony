@@ -48,3 +48,11 @@ skills-lock.json
 # Claude Code worktrees and local state
 .claude/worktrees/
 .claude/ralph-loop.local.md
+
+# Dashboard (Next.js)
+dashboard/node_modules/
+dashboard/.next/
+dashboard/apps/*/node_modules/
+dashboard/apps/*/.next/
+dashboard/packages/*/node_modules/
+dashboard/.env.local

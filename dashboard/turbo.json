@@ -1,0 +1,48 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "DATABASE_URL",
+    "AUTH_SECRET",
+    "SYMPHONY_API_URL",
+    "SYMPHONY_API_TOKEN",
+    "APP_URL"
+  ],
+  "tasks": {
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "dist/**", "build/**"]
+    },
+    "format": {
+      "cache": false
+    },
+    "lint": {
+      "dependsOn": ["^lint"]
+    },
+    "test": {
+      "dependsOn": ["^test"],
+      "outputs": ["playwright-report/**", "test-results/**"]
+    },
+    "test:unit": {
+      "dependsOn": ["^test:unit"]
+    },
+    "test:types": {
+      "dependsOn": ["^test:types"]
+    },
+    "docs:links": {
+      "cache": false
+    },
+    "fetch:models": {
+      "cache": false
+    },
+    "test:e2e": {
+      "cache": false
+    },
+    "skiller:apply": {
+      "cache": false
+    }
+  }
+}
