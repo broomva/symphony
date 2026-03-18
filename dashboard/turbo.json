@@ -5,7 +5,8 @@
     "AUTH_SECRET",
     "SYMPHONY_API_URL",
     "SYMPHONY_API_TOKEN",
-    "APP_URL"
+    "APP_URL",
+    "SKIP_ENV_VALIDATION"
   ],
   "tasks": {
     "dev": {

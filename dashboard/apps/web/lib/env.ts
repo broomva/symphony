@@ -5,6 +5,9 @@ export const env = createEnv({
   server: serverEnvSchema,
   client: {},
   experimental__runtimeEnv: {},
-  // Skip validation during Docker build (env vars are only available at runtime)
-  skipValidation: !!process.env.SKIP_ENV_VALIDATION,
+  // Skip validation when required env vars are missing (Docker build, CI).
+  // At runtime, missing vars will cause immediate errors on first use.
+  skipValidation:
+    !!process.env.SKIP_ENV_VALIDATION ||
+    !process.env.DATABASE_URL,
 });
