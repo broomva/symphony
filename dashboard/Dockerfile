@@ -31,4 +31,5 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["bun", "run", "start"]
+WORKDIR /app/apps/web
+CMD ["bunx", "next", "start", "-H", "0.0.0.0"]
