@@ -58,7 +58,7 @@ pub async fn run_status(conn: &ConnOpts, format: OutputFormat) -> anyhow::Result
         && let Some(config) = m.get("config")
     {
         if let Some(poll) = config.get("poll_interval_ms") {
-            output::print_kv("Poll interval:", &format!("{}ms", poll));
+            output::print_kv("Poll interval:", &format!("{poll}ms"));
         }
         if let Some(max) = config.get("max_concurrent_agents") {
             output::print_kv("Max concurrent:", &max.to_string());
