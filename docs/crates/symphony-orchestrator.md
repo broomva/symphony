@@ -23,9 +23,10 @@ The brain of Symphony. Implements the poll loop, dispatch, reconciliation, retry
 | File | Lines | Purpose |
 |------|-------|---------|
 | `scheduler.rs` | 723 | Main event loop, tick, dispatch, worker lifecycle, retry timers |
-| `dispatch.rs` | 349 | Eligibility rules, sorting, concurrency control |
+| `dispatch.rs` | ~450 | Eligibility rules, sorting, concurrency control, hive dispatch |
+| `hive.rs` | ~270 | HiveCoordinator: generation loop, convergence, prompt building, selection |
 | `reconcile.rs` | 170 | Stall detection, tracker state refresh, backoff formula |
-| `lib.rs` | 9 | Module exports |
+| `lib.rs` | 12 | Module exports |
 
 ## Algorithms (S16)
 
@@ -58,6 +59,21 @@ An issue is eligible for dispatch when:
 | Failure attempt 2 | 20s | |
 | Failure attempt 3 | 40s | |
 | Failure attempt 10 | Capped at `max_retry_backoff_ms` (default 300s) | |
+
+## Hive Mode (Multi-Agent Collaborative Evolution)
+
+When `hive.enabled: true` and an issue has the `hive` label:
+
+1. `is_hive_issue()` detects the issue
+2. `is_hive_dispatch_eligible()` allows multiple agents per issue (keyed by `{issue_id}:hive-{n}`)
+3. `HiveCoordinator` manages the generation loop:
+   - Starts N agents per generation, each running EGRI loops
+   - Agents coordinate via Spaces channels (real-time pub/sub)
+   - After all agents complete, selects generation winner by score
+   - Checks convergence (score delta < threshold)
+   - Either starts next generation or emits `HiveTaskCompleted`
+
+Key types: `HiveCoordinator`, `HiveConfig` (in symphony-config), `GenerationResult`, `HiveResult`.
 
 ## Known Gap
 

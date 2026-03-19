@@ -68,6 +68,7 @@ No critical gaps remain. Phase 9 (Symphony Cloud) is the next milestone.
 | Control metalayer governance | CLAUDE.md and AGENTS.md updated with metalayer-driven development loop | 2026-03-17 |
 | GitHub Issues tracker | `tracker.kind: github` — REST API client, label-based state mapping, PR filtering | 2026-03-17 |
 | Tracker factory | `create_tracker()` dispatches on config.kind (linear/github) | 2026-03-17 |
+| **Hive Mode** | Multi-agent collaborative evolution — N agents per issue, EGRI loops, Spaces coordination, generation-based selection. `HiveConfig` + `HiveCoordinator` + `is_hive_dispatch_eligible` + `run_hive_session`. Cross-crate: aios-protocol (5 event kinds), lago (metadata queries + HiveTask aggregate), arcan-spaces (HiveSpacesCoordinator), autoany (inject_history + replay_hive_history) | 2026-03-19 |
 
 ## Implementation Decisions
 

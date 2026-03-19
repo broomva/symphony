@@ -86,6 +86,20 @@ All hooks run via `sh -lc <script>` with workspace as cwd. See [[docs/crates/sym
 | `read_timeout_ms` | integer | 30000 | Handshake/sync timeout |
 | `stall_timeout_ms` | integer | 300000 | 5min inactivity (0 = disabled) |
 
+### `hive` (extension — multi-agent collaborative evolution)
+
+| Key | Type | Default | Notes |
+|-----|------|---------|-------|
+| `enabled` | bool | `false` | Enable hive mode for issues with `hive` label |
+| `agents_per_task` | integer | 3 | Concurrent agents per hive task |
+| `max_generations` | integer | 5 | Stop after N generations |
+| `convergence_threshold` | float | 0.01 | Stop if score improvement < threshold |
+| `egri_budget_per_agent` | integer | 10 | EGRI trial budget per agent per generation |
+| `eval_script` | string | — | Optional evaluation script path |
+| `spaces_server_id` | integer | — | Spaces server ID for coordination channels |
+
+Issues with the `hive` label trigger multi-agent dispatch when `hive.enabled: true`. All other issues use the single-agent path unchanged.
+
 ### `server` (extension)
 
 | Key | Type | Default | Notes |
