@@ -6,6 +6,7 @@
 //! Owns the poll tick, in-memory runtime state, and dispatch/retry/reconciliation logic.
 
 pub mod dispatch;
+pub mod hive;
 pub mod reconcile;
 pub mod scheduler;
 

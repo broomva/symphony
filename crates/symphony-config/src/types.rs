@@ -28,6 +28,9 @@ pub struct ServiceConfig {
     /// Runtime configuration for agent execution (subprocess vs. Arcan).
     #[serde(default)]
     pub runtime: RuntimeConfig,
+    /// Hive collaborative evolution configuration.
+    #[serde(default)]
+    pub hive: HiveConfig,
     /// Extension: optional HTTP server port.
     pub server_port: Option<u16>,
 }
@@ -107,6 +110,43 @@ pub struct RuntimePolicyConfig {
     pub allow_capabilities: Vec<String>,
     #[serde(default)]
     pub gate_capabilities: Vec<String>,
+}
+
+/// Configuration for hive multi-agent collaborative evolution mode.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct HiveConfig {
+    /// Whether hive mode is enabled. Issues with "hive" label use multi-agent dispatch.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Number of concurrent agents per hive task.
+    #[serde(default = "default_hive_agents")]
+    pub agents_per_task: u32,
+    /// Maximum number of generations before stopping.
+    #[serde(default = "default_hive_generations")]
+    pub max_generations: u32,
+    /// Stop early if score improvement is below this threshold.
+    #[serde(default = "default_convergence_threshold")]
+    pub convergence_threshold: f64,
+    /// EGRI budget (max trials) per agent per generation.
+    #[serde(default = "default_egri_budget")]
+    pub egri_budget_per_agent: u32,
+    /// Optional script to evaluate artifacts.
+    pub eval_script: Option<String>,
+    /// Spaces server ID for coordination channels.
+    pub spaces_server_id: Option<u64>,
+}
+
+fn default_hive_agents() -> u32 {
+    3
+}
+fn default_hive_generations() -> u32 {
+    5
+}
+fn default_convergence_threshold() -> f64 {
+    0.01
+}
+fn default_egri_budget() -> u32 {
+    10
 }
 
 fn default_runtime_kind() -> String {

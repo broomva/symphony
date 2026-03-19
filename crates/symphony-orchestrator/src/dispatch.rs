@@ -7,6 +7,7 @@
 
 use std::collections::HashMap;
 
+use symphony_config::types::HiveConfig;
 use symphony_core::{Issue, OrchestratorState};
 
 /// Check if an issue is eligible for dispatch (Spec Section 8.2).
@@ -121,6 +122,85 @@ pub fn has_per_state_slot(
         Some(&limit) => running_in_state(state, &normalized) < limit,
         None => true, // no per-state limit → use global only
     }
+}
+
+/// Check if an issue is eligible for hive multi-agent dispatch.
+///
+/// Same rules as `is_dispatch_eligible` EXCEPT:
+/// - Instead of blocking on `running.contains_key(&issue.id)`,
+///   counts agents as `running_for_issue = keys starting with "{issue.id}:hive-"`.
+/// - Blocks only when `running_for_issue >= hive_config.agents_per_task`.
+pub fn is_hive_dispatch_eligible(
+    issue: &Issue,
+    state: &OrchestratorState,
+    terminal_states: &[String],
+    active_states: &[String],
+    per_state_limits: &HashMap<String, u32>,
+    hive_config: &HiveConfig,
+) -> bool {
+    // Must have required fields
+    if issue.id.is_empty()
+        || issue.identifier.is_empty()
+        || issue.title.is_empty()
+        || issue.state.is_empty()
+    {
+        return false;
+    }
+
+    let normalized_state = issue.state.trim().to_lowercase();
+
+    // Must be in active states
+    if !active_states
+        .iter()
+        .any(|s| s.trim().to_lowercase() == normalized_state)
+    {
+        return false;
+    }
+
+    // Must not be in terminal states
+    if terminal_states
+        .iter()
+        .any(|s| s.trim().to_lowercase() == normalized_state)
+    {
+        return false;
+    }
+
+    // Must not be claimed (retry queue)
+    if state.is_claimed(&issue.id) {
+        return false;
+    }
+
+    // Hive-specific: count agents running for this issue
+    let hive_prefix = format!("{}:hive-", issue.id);
+    let running_for_issue = state
+        .running
+        .keys()
+        .filter(|k| k.starts_with(&hive_prefix))
+        .count() as u32;
+
+    if running_for_issue >= hive_config.agents_per_task {
+        return false;
+    }
+
+    // Must have global slots available
+    if state.available_slots() == 0 {
+        return false;
+    }
+
+    // Per-state concurrency check
+    if let Some(&limit) = per_state_limits.get(&normalized_state) {
+        let running_in = running_in_state(state, &normalized_state);
+        if running_in >= limit {
+            return false;
+        }
+    }
+
+    true
+}
+
+/// Check if an issue should use hive dispatch.
+pub fn is_hive_issue(issue: &Issue, hive_config: &HiveConfig) -> bool {
+    hive_config.enabled && issue.labels.iter().any(|l| l == "hive")
 }
 
 #[cfg(test)]
@@ -313,6 +393,92 @@ mod tests {
             &["Done".into()],
             &["Todo".into()],
             &HashMap::new()
+        ));
+    }
+
+    #[test]
+    fn hive_issue_detection() {
+        let config = HiveConfig {
+            enabled: true,
+            ..Default::default()
+        };
+        let mut issue = make_issue("1", "T-1", Some(1), "Todo");
+        issue.labels = vec!["hive".into()];
+        assert!(is_hive_issue(&issue, &config));
+
+        issue.labels = vec!["normal".into()];
+        assert!(!is_hive_issue(&issue, &config));
+
+        let disabled_config = HiveConfig::default();
+        issue.labels = vec!["hive".into()];
+        assert!(!is_hive_issue(&issue, &disabled_config));
+    }
+
+    #[test]
+    fn hive_dispatch_allows_multiple_agents() {
+        let state = OrchestratorState::new(30000, 10);
+        let mut issue = make_issue("1", "T-1", Some(1), "Todo");
+        issue.labels = vec!["hive".into()];
+        let config = HiveConfig {
+            enabled: true,
+            agents_per_task: 3,
+            ..Default::default()
+        };
+
+        // Should be eligible — no agents running yet
+        assert!(is_hive_dispatch_eligible(
+            &issue,
+            &state,
+            &["Done".into()],
+            &["Todo".into()],
+            &HashMap::new(),
+            &config,
+        ));
+    }
+
+    #[test]
+    fn hive_dispatch_blocks_at_limit() {
+        let mut state = OrchestratorState::new(30000, 10);
+        let config = HiveConfig {
+            enabled: true,
+            agents_per_task: 2,
+            ..Default::default()
+        };
+
+        // Add 2 running hive agents for issue "1"
+        for i in 0..2 {
+            let key = format!("1:hive-{i}");
+            state.running.insert(
+                key.clone(),
+                symphony_core::state::RunningEntry {
+                    identifier: format!("T-1:hive-{i}"),
+                    issue: make_issue("1", "T-1", Some(1), "Todo"),
+                    session_id: None,
+                    codex_app_server_pid: None,
+                    last_codex_message: None,
+                    last_codex_event: None,
+                    last_codex_timestamp: None,
+                    codex_input_tokens: 0,
+                    codex_output_tokens: 0,
+                    codex_total_tokens: 0,
+                    last_reported_input_tokens: 0,
+                    last_reported_output_tokens: 0,
+                    last_reported_total_tokens: 0,
+                    retry_attempt: None,
+                    started_at: Utc::now(),
+                    turn_count: 0,
+                },
+            );
+        }
+
+        let issue = make_issue("1", "T-1", Some(1), "Todo");
+        assert!(!is_hive_dispatch_eligible(
+            &issue,
+            &state,
+            &["Done".into()],
+            &["Todo".into()],
+            &HashMap::new(),
+            &config,
         ));
     }
 

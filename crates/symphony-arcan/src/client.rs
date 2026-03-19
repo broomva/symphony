@@ -3,6 +3,8 @@
 
 //! HTTP client for the Arcan agent runtime daemon.
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -49,6 +51,9 @@ pub struct CreateSessionRequest {
     pub owner: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy: Option<PolicyConfig>,
+    /// Optional metadata to attach to all events in this session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -261,6 +266,7 @@ mod tests {
             session_id: Some("sess-123".into()),
             owner: Some("symphony".into()),
             policy: None,
+            metadata: None,
         };
         let manifest = client.create_session(&req).await.unwrap();
         assert_eq!(manifest.session_id, "sess-123");
@@ -285,6 +291,7 @@ mod tests {
             session_id: Some("sess-123".into()),
             owner: None,
             policy: None,
+            metadata: None,
         };
         let err = client.create_session(&req).await.unwrap_err();
         match err {
