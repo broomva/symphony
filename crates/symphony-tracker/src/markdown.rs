@@ -150,9 +150,8 @@ impl Journal {
             metadata: std::collections::HashMap::new(),
         };
 
-        let line = serde_json::to_string(&entry).map_err(|e| {
-            TrackerError::MarkdownIoError(format!("journal serialize error: {e}"))
-        })?;
+        let line = serde_json::to_string(&entry)
+            .map_err(|e| TrackerError::MarkdownIoError(format!("journal serialize error: {e}")))?;
 
         use std::io::Write;
         let mut file = std::fs::OpenOptions::new()
@@ -206,9 +205,8 @@ impl Journal {
             metadata: std::collections::HashMap::new(),
         };
 
-        let line = serde_json::to_string(&entry).map_err(|e| {
-            TrackerError::MarkdownIoError(format!("journal serialize error: {e}"))
-        })?;
+        let line = serde_json::to_string(&entry)
+            .map_err(|e| TrackerError::MarkdownIoError(format!("journal serialize error: {e}")))?;
 
         use std::io::Write;
         let mut file = std::fs::OpenOptions::new()
@@ -489,10 +487,7 @@ impl MarkdownClient {
                 })?;
 
             std::fs::write(&path, updated_content).map_err(|e| {
-                TrackerError::MarkdownIoError(format!(
-                    "cannot write {}: {e}",
-                    path.display()
-                ))
+                TrackerError::MarkdownIoError(format!("cannot write {}: {e}", path.display()))
             })?;
 
             // Journal the state transition (best-effort, don't fail the write)
@@ -527,14 +522,8 @@ impl TrackerClient for MarkdownClient {
     async fn fetch_candidate_issues(&self) -> Result<Vec<Issue>, TrackerError> {
         let issues_dir = self.issues_dir.clone();
         let active_states = self.active_states.clone();
-        let journal_path = self
-            .journal
-            .as_ref()
-            .map(|j| j.journal_path.clone());
-        let lago_endpoint = self
-            .journal
-            .as_ref()
-            .and_then(|j| j.lago_endpoint.clone());
+        let journal_path = self.journal.as_ref().map(|j| j.journal_path.clone());
+        let lago_endpoint = self.journal.as_ref().and_then(|j| j.lago_endpoint.clone());
 
         let issues = tokio::task::spawn_blocking(move || {
             let mc = if journal_path.is_some() {
@@ -599,14 +588,8 @@ impl TrackerClient for MarkdownClient {
         let id = issue_id.to_string();
         let state = state.to_string();
         let dir = self.issues_dir.clone();
-        let journal_path = self
-            .journal
-            .as_ref()
-            .map(|j| j.journal_path.clone());
-        let lago_endpoint = self
-            .journal
-            .as_ref()
-            .and_then(|j| j.lago_endpoint.clone());
+        let journal_path = self.journal.as_ref().map(|j| j.journal_path.clone());
+        let lago_endpoint = self.journal.as_ref().and_then(|j| j.lago_endpoint.clone());
 
         tokio::task::spawn_blocking(move || {
             let mc = if journal_path.is_some() {
@@ -894,7 +877,8 @@ Already completed."#;
 
     #[test]
     fn labels_normalized_to_lowercase() {
-        let content = "---\nid: T1\ntitle: Test\nstate: Todo\nlabels:\n  - BUG\n  - Feature\n---\nbody";
+        let content =
+            "---\nid: T1\ntitle: Test\nstate: Todo\nlabels:\n  - BUG\n  - Feature\n---\nbody";
         let (fm_str, body) = parse_front_matter(content).unwrap();
         let fm: IssueFrontMatter = serde_yaml::from_str(fm_str).unwrap();
         let issue = normalize_issue(&fm, body);
@@ -907,10 +891,7 @@ Already completed."#;
         write_issue(dir.path(), "task-001.md", SAMPLE_ISSUE);
         write_issue(dir.path(), "task-003.md", DONE_ISSUE);
 
-        let client = MarkdownClient::new(
-            dir.path().to_path_buf(),
-            vec!["Todo".into()],
-        );
+        let client = MarkdownClient::new(dir.path().to_path_buf(), vec!["Todo".into()]);
         let issues = client.fetch_candidate_issues().await.unwrap();
         assert_eq!(issues.len(), 2);
     }
@@ -1080,8 +1061,7 @@ Already completed."#;
             .unwrap();
 
         // Read raw JSONL and verify schema
-        let content =
-            std::fs::read_to_string(dir.path().join(".journal.jsonl")).unwrap();
+        let content = std::fs::read_to_string(dir.path().join(".journal.jsonl")).unwrap();
         let entry: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
 
         // Lago EventEnvelope fields
@@ -1103,8 +1083,7 @@ Already completed."#;
         let dir = TempDir::new().unwrap();
         write_issue(dir.path(), "task-001.md", SAMPLE_ISSUE);
 
-        let client =
-            MarkdownClient::with_journal(dir.path().to_path_buf(), vec![], None);
+        let client = MarkdownClient::with_journal(dir.path().to_path_buf(), vec![], None);
         client.write_state("TASK-001", "Done").unwrap();
 
         let content = std::fs::read_to_string(dir.path().join("task-001.md")).unwrap();
@@ -1128,10 +1107,7 @@ Already completed."#;
     #[tokio::test]
     async fn lago_check_returns_none_for_unreachable() {
         let dir = TempDir::new().unwrap();
-        let journal = Journal::new(
-            dir.path(),
-            Some("http://localhost:19999".into()),
-        );
+        let journal = Journal::new(dir.path(), Some("http://localhost:19999".into()));
         assert!(journal.check_lago().await.is_none());
     }
 }

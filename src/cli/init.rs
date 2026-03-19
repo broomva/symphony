@@ -270,7 +270,9 @@ pub fn run_init(args: &InitArgs) -> anyhow::Result<()> {
         "linear" => LINEAR_TEMPLATE,
         "github" => GITHUB_TEMPLATE,
         "markdown" => MARKDOWN_TEMPLATE,
-        other => anyhow::bail!("unsupported tracker: '{other}'. Use 'linear', 'github', or 'markdown'."),
+        other => {
+            anyhow::bail!("unsupported tracker: '{other}'. Use 'linear', 'github', or 'markdown'.")
+        }
     };
 
     std::fs::write(output_path, template)?;
@@ -329,10 +331,7 @@ fn print_env_hint(tracker: &str, path: &Path) {
             println!("  Description of the task.");
             println!();
             println!("Quick test:");
-            println!(
-                "  symphony run TASK-001 --workflow-path {}",
-                path.display()
-            );
+            println!("  symphony run TASK-001 --workflow-path {}", path.display());
         }
         _ => {}
     }
