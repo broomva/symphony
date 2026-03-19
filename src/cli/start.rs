@@ -10,6 +10,7 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, watch};
 
 use super::StartArgs;
+use super::dashboard;
 
 /// Run the Symphony daemon (Algorithm 16.1 entry point).
 pub async fn run_start(args: StartArgs, port_override: Option<u16>) -> anyhow::Result<()> {
@@ -115,6 +116,21 @@ pub async fn run_start(args: StartArgs, port_override: Option<u16>) -> anyhow::R
         let _ = sig_shutdown_tx.send(true);
     });
 
+    // Launch dashboard if requested
+    let mut dashboard_handle = None;
+    if args.dashboard {
+        let daemon_port = server_port.unwrap_or(7070);
+        match dashboard::launch(args.dashboard_port, daemon_port).await {
+            Ok(handle) => {
+                tracing::info!(port = handle.port, "dashboard launched");
+                dashboard_handle = Some(handle);
+            }
+            Err(e) => {
+                tracing::error!(%e, "failed to launch dashboard — continuing without it");
+            }
+        }
+    }
+
     // Start scheduler
     let mut scheduler = symphony_orchestrator::Scheduler::new(
         config,
@@ -136,6 +152,12 @@ pub async fn run_start(args: StartArgs, port_override: Option<u16>) -> anyhow::R
     }
 
     scheduler.run().await?;
+
+    // Shut down the dashboard if it was launched
+    if let Some(ref mut handle) = dashboard_handle {
+        tracing::info!("shutting down dashboard");
+        handle.shutdown();
+    }
 
     tracing::info!("symphony stopped");
     Ok(())

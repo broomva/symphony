@@ -120,6 +120,40 @@ pub async fn run_doctor(conn: &ConnOpts) -> anyhow::Result<()> {
     checks.push(check_binary("gh"));
     checks.push(check_binary("git"));
 
+    // 3b. JS runtime (for dashboard)
+    let has_bun = std::process::Command::new("which")
+        .arg("bun")
+        .output()
+        .is_ok_and(|o| o.status.success());
+    let has_node = std::process::Command::new("which")
+        .arg("node")
+        .output()
+        .is_ok_and(|o| o.status.success());
+    checks.push(Check {
+        name: "js runtime",
+        passed: has_bun || has_node,
+        detail: if has_bun {
+            "bun found in PATH".into()
+        } else if has_node {
+            "node found in PATH (bun recommended)".into()
+        } else {
+            "neither bun nor node found in PATH".into()
+        },
+    });
+
+    // 3c. Dashboard directory
+    let dashboard_exists = super::dashboard::dashboard_dir_exists();
+    let dashboard_path = super::dashboard::expected_dashboard_path();
+    checks.push(Check {
+        name: "dashboard",
+        passed: dashboard_exists,
+        detail: if dashboard_exists {
+            format!("found: {}", dashboard_path.display())
+        } else {
+            format!("not found: {}", dashboard_path.display())
+        },
+    });
+
     // 4. Daemon connectivity
     let client = conn.client();
     let daemon_running = client.is_running().await;

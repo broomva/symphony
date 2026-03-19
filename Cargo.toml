@@ -109,3 +109,4 @@ serde_json.workspace = true
 chrono.workspace = true
 thiserror.workspace = true
 dotenvy = "0.15"
+rand = "0.9"

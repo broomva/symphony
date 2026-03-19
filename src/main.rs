@@ -94,6 +94,7 @@ async fn run_command(
             Ok(())
         }
         Command::Doctor => cli::doctor::run_doctor(&conn).await,
+        Command::Dashboard(sub) => cli::dashboard::run_dashboard_command(sub).await,
     }
 }
 
@@ -198,5 +199,38 @@ mod tests {
         if let Some(Command::Init(args)) = cli.command {
             assert_eq!(args.tracker, "github");
         }
+    }
+
+    #[test]
+    fn cli_start_dashboard_defaults() {
+        let cli = Cli::parse_from(["symphony", "start"]);
+        if let Some(Command::Start(args)) = cli.command {
+            assert!(!args.dashboard);
+            assert_eq!(args.dashboard_port, 3000);
+        }
+    }
+
+    #[test]
+    fn cli_start_dashboard_flag() {
+        let cli = Cli::parse_from([
+            "symphony",
+            "start",
+            "--dashboard",
+            "--dashboard-port",
+            "4200",
+        ]);
+        if let Some(Command::Start(args)) = cli.command {
+            assert!(args.dashboard);
+            assert_eq!(args.dashboard_port, 4200);
+        }
+    }
+
+    #[test]
+    fn cli_dashboard_subcommand() {
+        let cli = Cli::parse_from(["symphony", "dashboard", "install"]);
+        assert!(matches!(
+            cli.command,
+            Some(Command::Dashboard(DashboardCommand::Install))
+        ));
     }
 }

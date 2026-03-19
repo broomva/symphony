@@ -9,6 +9,7 @@
 pub mod client;
 pub mod config_cmd;
 pub mod control;
+pub mod dashboard;
 pub mod doctor;
 pub mod init;
 pub mod issues;
@@ -83,6 +84,9 @@ pub enum Command {
     Init(InitArgs),
     /// Pre-flight environment check.
     Doctor,
+    /// Manage the Next.js dashboard.
+    #[command(subcommand)]
+    Dashboard(DashboardCommand),
 }
 
 #[derive(clap::Args, Debug)]
@@ -124,6 +128,14 @@ pub struct StartArgs {
     /// Only process these specific tickets (comma-separated).
     #[arg(long, value_delimiter = ',')]
     pub tickets: Option<Vec<String>>,
+
+    /// Launch the Next.js dashboard alongside the daemon.
+    #[arg(long)]
+    pub dashboard: bool,
+
+    /// Port for the dashboard dev server.
+    #[arg(long, default_value_t = 3000)]
+    pub dashboard_port: u16,
 }
 
 impl Default for StartArgs {
@@ -135,6 +147,8 @@ impl Default for StartArgs {
             turns: None,
             once: false,
             tickets: None,
+            dashboard: false,
+            dashboard_port: 3000,
         }
     }
 }
@@ -195,6 +209,31 @@ pub struct LogsArgs {
     /// Log file path.
     #[arg(default_value = "~/.symphony/symphony.log")]
     pub path: String,
+}
+
+/// Dashboard management subcommands.
+#[derive(Subcommand, Debug)]
+pub enum DashboardCommand {
+    /// Show where the dashboard should be installed.
+    Install,
+    /// Check if a dashboard dev server is running.
+    Status(DashboardStatusArgs),
+    /// Stop a running dashboard dev server.
+    Stop(DashboardStopArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct DashboardStatusArgs {
+    /// Port to check (default: 3000).
+    #[arg(long, default_value_t = 3000)]
+    pub port: u16,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct DashboardStopArgs {
+    /// Port of the dashboard to stop (default: 3000).
+    #[arg(long, default_value_t = 3000)]
+    pub port: u16,
 }
 
 #[derive(clap::Args, Debug)]
@@ -259,6 +298,7 @@ const SUBCOMMANDS: &[&str] = &[
     "logs",
     "init",
     "doctor",
+    "dashboard",
     "help",
 ];
 
@@ -422,5 +462,56 @@ mod tests {
         let cli = Cli::parse_from(["symphony"]);
         // None command → treated as Start with defaults
         assert!(cli.command.is_none());
+    }
+
+    #[test]
+    fn parse_start_with_dashboard() {
+        let cli = Cli::parse_from(["symphony", "start", "--dashboard"]);
+        if let Some(Command::Start(args)) = cli.command {
+            assert!(args.dashboard);
+            assert_eq!(args.dashboard_port, 3000);
+        }
+    }
+
+    #[test]
+    fn parse_start_with_dashboard_port() {
+        let cli = Cli::parse_from([
+            "symphony",
+            "start",
+            "--dashboard",
+            "--dashboard-port",
+            "4000",
+        ]);
+        if let Some(Command::Start(args)) = cli.command {
+            assert!(args.dashboard);
+            assert_eq!(args.dashboard_port, 4000);
+        }
+    }
+
+    #[test]
+    fn parse_dashboard_install() {
+        let cli = Cli::parse_from(["symphony", "dashboard", "install"]);
+        assert!(matches!(
+            cli.command,
+            Some(Command::Dashboard(DashboardCommand::Install))
+        ));
+    }
+
+    #[test]
+    fn parse_dashboard_status() {
+        let cli = Cli::parse_from(["symphony", "dashboard", "status"]);
+        assert!(matches!(
+            cli.command,
+            Some(Command::Dashboard(DashboardCommand::Status(_)))
+        ));
+    }
+
+    #[test]
+    fn parse_dashboard_stop() {
+        let cli = Cli::parse_from(["symphony", "dashboard", "stop"]);
+        assert!(matches!(
+            cli.command,
+            Some(Command::Dashboard(DashboardCommand::Stop(_)))
+        ));
     }
 }
