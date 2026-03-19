@@ -330,7 +330,8 @@ async fn spawn_dashboard(dashboard_dir: &Path, runtime: &str, port: u16) -> anyh
     let port_str = port.to_string();
 
     let mut cmd = Command::new(runtime);
-    cmd.args(["run", "dev", "--", "--port", &port_str])
+    cmd.args(["run", "dev"])
+        .env("PORT", &port_str)
         .current_dir(dashboard_dir)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
