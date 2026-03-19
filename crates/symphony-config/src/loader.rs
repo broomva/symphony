@@ -341,20 +341,21 @@ pub fn validate_dispatch_config(config: &ServiceConfig) -> Result<(), Vec<String
 
     if config.tracker.kind.is_empty() {
         errors.push("tracker.kind is required".into());
-    } else if config.tracker.kind != "linear" && config.tracker.kind != "github" {
+    } else if !["linear", "github", "markdown"].contains(&config.tracker.kind.as_str()) {
         errors.push(format!(
             "unsupported tracker.kind: '{}'",
             config.tracker.kind
         ));
     }
 
-    if config.tracker.api_key.is_empty() {
+    // api_key is required for remote trackers, not for local ones
+    if (config.tracker.kind == "linear" || config.tracker.kind == "github")
+        && config.tracker.api_key.is_empty()
+    {
         errors.push("tracker.api_key is required (after $VAR resolution)".into());
     }
 
-    if (config.tracker.kind == "linear" || config.tracker.kind == "github")
-        && config.tracker.project_slug.is_empty()
-    {
+    if config.tracker.project_slug.is_empty() {
         errors.push(format!(
             "tracker.project_slug is required for {} tracker",
             config.tracker.kind

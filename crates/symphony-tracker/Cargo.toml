@@ -19,3 +19,7 @@ tracing.workspace = true
 tokio.workspace = true
 chrono.workspace = true
 async-trait = "0.1"
+serde_yaml.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

@@ -9,6 +9,7 @@
 pub mod github;
 pub mod graphql_tool;
 pub mod linear;
+pub mod markdown;
 
 use async_trait::async_trait;
 use symphony_core::Issue;
@@ -36,18 +37,21 @@ pub enum TrackerError {
     GithubApiRequest(String),
     #[error("github_api_status: {status} {body}")]
     GithubApiStatus { status: u16, body: String },
+    #[error("markdown_io_error: {0}")]
+    MarkdownIoError(String),
+    #[error("markdown_parse_error: {0}")]
+    MarkdownParseError(String),
 }
 
 /// Create a tracker client from config, dispatching on `config.kind`.
 pub fn create_tracker(
     config: &symphony_config::types::TrackerConfig,
 ) -> Result<Box<dyn TrackerClient>, TrackerError> {
-    if config.api_key.is_empty() {
-        return Err(TrackerError::MissingApiKey);
-    }
-
     match config.kind.as_str() {
         "linear" => {
+            if config.api_key.is_empty() {
+                return Err(TrackerError::MissingApiKey);
+            }
             if config.project_slug.is_empty() {
                 return Err(TrackerError::MissingProjectSlug);
             }
@@ -59,6 +63,9 @@ pub fn create_tracker(
             )))
         }
         "github" => {
+            if config.api_key.is_empty() {
+                return Err(TrackerError::MissingApiKey);
+            }
             if config.project_slug.is_empty() {
                 return Err(TrackerError::MissingProjectSlug);
             }
@@ -68,6 +75,24 @@ pub fn create_tracker(
                 config.active_states.clone(),
             )?;
             Ok(Box::new(client))
+        }
+        "markdown" => {
+            if config.project_slug.is_empty() {
+                return Err(TrackerError::MissingProjectSlug);
+            }
+            let issues_dir = symphony_config::loader::expand_path(&config.project_slug);
+            let lago_endpoint = if config.endpoint.is_empty()
+                || config.endpoint == "https://api.linear.app/graphql"
+            {
+                None
+            } else {
+                Some(config.endpoint.clone())
+            };
+            Ok(Box::new(markdown::MarkdownClient::with_journal(
+                std::path::PathBuf::from(issues_dir),
+                config.active_states.clone(),
+                lago_endpoint,
+            )))
         }
         other => Err(TrackerError::UnsupportedKind(other.to_string())),
     }

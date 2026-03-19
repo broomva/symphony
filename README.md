@@ -14,14 +14,14 @@ created: 2026-03-06
 > A Rust implementation of the [Symphony](https://github.com/openai/symphony) orchestration spec by OpenAI.
 > For vault navigation see [[docs/Symphony Index|Symphony Index]]. For the canonical spec see [[SPEC]].
 
-A Rust-based orchestration service that polls an issue tracker (Linear), creates isolated per-issue workspaces, and runs coding agent sessions automatically.
+A Rust-based orchestration service that polls an issue tracker (Linear, GitHub, or local Markdown files), creates isolated per-issue workspaces, and runs coding agent sessions automatically.
 
 Symphony turns your issue backlog into autonomous coding work — it watches for "Todo" issues, clones your repo into a sandboxed workspace, runs a coding agent (like Claude Code), and manages retries, concurrency, and lifecycle hooks.
 
 ## How It Works
 
 ```
-Linear (Todo issues)
+Tracker (Linear / GitHub / Markdown files)
        │
        ▼
    ┌────────────────────────┐
@@ -49,19 +49,19 @@ Linear (Todo issues)
    └─────────────────────┘
 ```
 
-**Poll loop**: Fetches active issues from Linear → filters by project & state → dispatches up to `max_concurrent_agents` workers.
+**Poll loop**: Fetches active issues from the configured tracker → filters by project & state → dispatches up to `max_concurrent_agents` workers.
 
 **Per-issue worker**: Creates workspace directory → runs lifecycle hooks (clone repo, rebase, etc.) → renders prompt template with issue data → launches coding agent → runs post-hooks (commit, etc.).
 
-**Reconciliation**: On each tick, refreshes running issue states from Linear. If an issue moves to a terminal state (Done/Canceled), the worker is cleaned up.
+**Reconciliation**: On each tick, refreshes running issue states from the tracker. If an issue moves to a terminal state (Done/Canceled), the worker is cleaned up.
 
 ## Quick Start
 
 ### Prerequisites
 
 - Rust 1.85+ (edition 2024)
-- A [Linear](https://linear.app) API key
 - A coding agent CLI (e.g., `claude`)
+- One of: [Linear](https://linear.app) API key, GitHub token, or a local `tasks/` directory with `.md` files
 - `gh` CLI (if using GitHub hooks)
 
 ### Build
@@ -182,17 +182,22 @@ Open `http://localhost:8080` for a live HTML dashboard showing running/retrying 
 
 ## Architecture
 
-Rust workspace with 7 crates:
+Rust workspace with 8 crates:
 
 | Crate | Responsibility |
 |-------|---------------|
 | `symphony-core` | Domain types: Issue, Session, Workspace, OrchestratorState |
 | `symphony-config` | WORKFLOW.md loader, typed config, live file watcher |
-| `symphony-tracker` | Linear GraphQL client, issue fetching, state normalization |
+| `symphony-tracker` | Tracker adapters (Linear, GitHub, Markdown), issue fetching, state normalization |
 | `symphony-workspace` | Per-issue directory lifecycle, hook execution, path safety |
 | `symphony-agent` | Coding agent subprocess management (CLI pipe + JSON-RPC modes) |
 | `symphony-orchestrator` | Poll loop, dispatch, reconciliation, retry queue |
 | `symphony-observability` | Structured logging, HTTP dashboard + REST API |
+| `symphony-arcan` | Arcan runtime adapter — bridges Symphony to the Agent OS stack |
+
+### Dashboard
+
+A separate TypeScript/React dashboard lives in `dashboard/` (Turborepo, Bun). It provides a web UI for monitoring Symphony orchestrator state, issues, and agent sessions.
 
 ### Key Features
 
@@ -211,9 +216,9 @@ Rust workspace with 7 crates:
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `tracker.kind` | yes | — | Tracker type (`linear`) |
-| `tracker.api_key` | yes | — | API key (supports `$ENV_VAR` syntax) |
-| `tracker.project_slug` | yes | — | Linear project slug ID |
+| `tracker.kind` | yes | — | Tracker type (`linear`, `github`, or `markdown`) |
+| `tracker.api_key` | yes (linear/github) | — | API key (supports `$ENV_VAR` syntax); not needed for markdown |
+| `tracker.project_slug` | yes | — | Linear slug, `owner/repo`, or directory path for markdown |
 | `tracker.active_states` | no | `["Todo"]` | States that make an issue eligible |
 | `tracker.terminal_states` | no | `["Done","Canceled"]` | States that trigger cleanup |
 | `polling.interval_ms` | no | `30000` | Poll interval in milliseconds |
@@ -257,7 +262,7 @@ make fmt      # cargo fmt --all
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 Key extension points:
-- **Tracker plugins**: Implement the `TrackerClient` trait to add support for GitHub Issues, Jira, etc.
+- **Tracker plugins**: Implement the `TrackerClient` trait to add support for Jira, etc. (Linear, GitHub, and Markdown are built-in)
 - **Agent runners**: The agent runner supports any CLI that speaks line-delimited JSON on stdout
 - **Workflow templates**: Create new `WORKFLOW.md` examples for different use cases
 

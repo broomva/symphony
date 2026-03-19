@@ -33,12 +33,13 @@ Front matter must be a YAML mapping. Non-map → `workflow_front_matter_not_a_ma
 
 | Key | Type | Required | Default | Notes |
 |-----|------|----------|---------|-------|
-| `kind` | string | Yes | — | Only `"linear"` supported |
-| `endpoint` | string | No | `https://api.linear.app/graphql` | |
-| `api_key` | string | Yes | — | Supports `$VAR` env resolution |
-| `project_slug` | string | Yes (for linear) | — | Linear project slug ID |
+| `kind` | string | Yes | — | `"linear"`, `"github"`, or `"markdown"` |
+| `endpoint` | string | No | `https://api.linear.app/graphql` | API endpoint; for markdown: optional Lago HTTP URL |
+| `api_key` | string | Yes (linear/github) | — | Supports `$VAR` env resolution; not required for markdown |
+| `project_slug` | string | Yes | — | Linear slug, `owner/repo` for GitHub, or directory path for markdown |
 | `active_states` | list/CSV | No | `["Todo"]` | States to poll for |
 | `terminal_states` | list/CSV | No | `["Done", "Canceled"]` | States that end work |
+| `done_state` | string | No | — | Auto-transition issues to this state on agent success |
 
 ### `polling` (S5.3.2)
 
@@ -107,9 +108,9 @@ All hooks run via `sh -lc <script>` with workspace as cwd. See [[docs/crates/sym
 ## Dispatch Validation (S6.3)
 
 Before each tick, validates:
-- `tracker.kind` present and supported (`"linear"`)
-- `tracker.api_key` non-empty after `$VAR` resolution
-- `tracker.project_slug` present (for Linear)
+- `tracker.kind` present and supported (`"linear"`, `"github"`, or `"markdown"`)
+- `tracker.api_key` non-empty after `$VAR` resolution (linear/github only)
+- `tracker.project_slug` present
 - `codex.command` non-empty
 
 Failure → skip dispatch for that tick, keep reconciliation running.
