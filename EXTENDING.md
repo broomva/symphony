@@ -89,6 +89,7 @@ pub fn create_tracker(config: &TrackerConfig) -> Result<Box<dyn TrackerClient>, 
     match config.kind.as_str() {
         "linear" => Ok(Box::new(LinearClient::new(/* ... */))),
         "github" => Ok(Box::new(GithubClient::from_slug(/* ... */))),
+        "markdown" => Ok(Box::new(MarkdownClient::with_journal(/* ... */))),
         other => Err(TrackerError::UnsupportedKind(other.into())),
     }
 }
@@ -112,6 +113,49 @@ pub fn create_tracker(config: &TrackerConfig) -> Result<Box<dyn TrackerClient>, 
   - If an issue has a label matching an `active_states` entry, that label is used as the state
   - Otherwise, GitHub's native `open`/`closed` is used
 - Pull requests are automatically filtered out (GitHub's issues API includes PRs)
+
+#### Markdown Files (`tracker.kind: markdown`)
+- Reads `.md` files from a local directory — no external API or credentials required
+- `project_slug`: path to the issues directory (e.g., `./tasks/`)
+- `api_key`: not required (set to `unused` or leave empty)
+- States: read from YAML front matter `state:` field in each `.md` file
+- State transitions: rewrites the `state:` line in the file's front matter
+- Obsidian-compatible: issues are regular markdown files with YAML front matter
+
+**Issue file format:**
+```markdown
+---
+id: TASK-001
+title: Fix the auth bug
+state: Todo
+priority: 1
+labels: [bug, auth]
+blocked_by:
+  - id: TASK-000
+    identifier: TASK-000
+    state: Done
+created_at: "2026-01-15T10:00:00Z"
+---
+
+Description of the task goes here.
+```
+
+**Lago journaling (optional):** When `endpoint` is configured (e.g., `http://localhost:8080`), every state transition is journaled to `{issues_dir}/.journal.jsonl` using Lago's `EventPayload::Custom` schema. If the endpoint points to a running Lago daemon, a session is created on startup. The journal works without Lago running — entries can be batch-imported later.
+
+Journal entry format:
+```json
+{
+  "event_id": "0195...",
+  "session_id": "symphony",
+  "branch_id": "main",
+  "timestamp": "2026-03-19T10:00:00Z",
+  "payload": {
+    "type": "Custom",
+    "event_type": "symphony.tracker.state_transition",
+    "data": { "issue_id": "TASK-001", "from_state": "Todo", "to_state": "Done" }
+  }
+}
+```
 
 ### Key Requirements
 
