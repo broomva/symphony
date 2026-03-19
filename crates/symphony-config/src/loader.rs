@@ -174,6 +174,11 @@ pub fn extract_config(def: &WorkflowDefinition) -> ServiceConfig {
         config.runtime = extract_runtime(runtime);
     }
 
+    // Hive
+    if let Some(hive) = map.get(serde_yaml::Value::String("hive".into())) {
+        config.hive = extract_hive(hive);
+    }
+
     config
 }
 
@@ -280,6 +285,40 @@ fn extract_runtime(v: &serde_yaml::Value) -> crate::types::RuntimeConfig {
         }
     }
     runtime
+}
+
+fn extract_hive(v: &serde_yaml::Value) -> crate::types::HiveConfig {
+    let mut hive = crate::types::HiveConfig::default();
+    if let Some(enabled) = v
+        .as_mapping()
+        .and_then(|m| m.get(serde_yaml::Value::String("enabled".into())))
+        .and_then(|v| v.as_bool())
+    {
+        hive.enabled = enabled;
+    }
+    if let Some(n) = get_u64(v, "agents_per_task") {
+        hive.agents_per_task = n as u32;
+    }
+    if let Some(n) = get_u64(v, "max_generations") {
+        hive.max_generations = n as u32;
+    }
+    if let Some(t) = v
+        .as_mapping()
+        .and_then(|m| m.get(serde_yaml::Value::String("convergence_threshold".into())))
+        .and_then(|v| v.as_f64())
+    {
+        hive.convergence_threshold = t;
+    }
+    if let Some(n) = get_u64(v, "egri_budget_per_agent") {
+        hive.egri_budget_per_agent = n as u32;
+    }
+    if let Some(s) = get_str(v, "eval_script") {
+        hive.eval_script = Some(s);
+    }
+    if let Some(n) = get_u64(v, "spaces_server_id") {
+        hive.spaces_server_id = Some(n);
+    }
+    hive
 }
 
 // YAML value helpers

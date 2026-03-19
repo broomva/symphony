@@ -99,6 +99,31 @@ pub async fn run_config(workflow_path: &Path, format: OutputFormat) -> anyhow::R
     println!("  stall_timeout:  {}ms", config.codex.stall_timeout_ms);
     println!();
 
+    println!("[runtime]");
+    println!("  kind:           {}", config.runtime.kind);
+    println!("  base_url:       {}", config.runtime.base_url);
+    println!();
+
+    println!("[hive]");
+    println!("  enabled:        {}", config.hive.enabled);
+    println!("  agents_per_task:{}", config.hive.agents_per_task);
+    println!("  max_generations:{}", config.hive.max_generations);
+    println!("  convergence:    {}", config.hive.convergence_threshold);
+    println!("  egri_budget:    {}", config.hive.egri_budget_per_agent);
+    println!(
+        "  eval_script:    {}",
+        config.hive.eval_script.as_deref().unwrap_or("(none)")
+    );
+    println!(
+        "  spaces_server:  {}",
+        config
+            .hive
+            .spaces_server_id
+            .map(|id| id.to_string())
+            .unwrap_or_else(|| "(none)".into())
+    );
+    println!();
+
     println!("[server]");
     println!(
         "  port:           {}",
