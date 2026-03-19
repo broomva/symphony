@@ -332,6 +332,13 @@ async fn run_migrations(dashboard_dir: &Path, runtime: &str) -> anyhow::Result<(
 
 /// Spawn the dashboard dev server as a background child process.
 async fn spawn_dashboard(dashboard_dir: &Path, runtime: &str) -> anyhow::Result<Child> {
+    // Clean stale Next.js dev lock from previous crashed sessions
+    let lock_file = dashboard_dir.join("apps/web/.next/dev/lock");
+    if lock_file.exists() {
+        let _ = std::fs::remove_file(&lock_file);
+        tracing::debug!("removed stale Next.js dev lock");
+    }
+
     let mut cmd = Command::new(runtime);
     cmd.args(["run", "dev"])
         .current_dir(dashboard_dir)
