@@ -27,6 +27,8 @@ pub struct AppState {
     /// When set, all `/api/v1/*` endpoints require `Authorization: Bearer <token>`.
     /// Health endpoints (`/healthz`, `/readyz`) and dashboard (`/`) remain open.
     pub api_token: Option<String>,
+    /// Optional EGRI evaluation state snapshot (set by symphony-egri crate).
+    pub egri_state: Option<Arc<Mutex<serde_json::Value>>>,
 }
 
 /// State summary response (Spec Section 13.7.2).
@@ -131,6 +133,7 @@ pub fn build_router(state: AppState) -> Router {
             axum::routing::post(post_shutdown).get(method_not_allowed),
         )
         .route("/api/v1/metrics", get(get_metrics))
+        .route("/api/v1/egri", get(get_egri))
         .route("/api/v1/{identifier}", get(get_issue))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
@@ -453,6 +456,20 @@ async fn get_metrics(State(state): State<AppState>) -> Json<serde_json::Value> {
     }
 }
 
+/// GET /api/v1/egri — EGRI evaluation state snapshot.
+async fn get_egri(State(state): State<AppState>) -> Json<serde_json::Value> {
+    match &state.egri_state {
+        Some(egri) => {
+            let snapshot = egri.lock().await;
+            Json(snapshot.clone())
+        }
+        None => Json(serde_json::json!({
+            "enabled": false,
+            "message": "EGRI evaluation not configured"
+        })),
+    }
+}
+
 /// GET /metrics — Prometheus/OpenMetrics text format (S56 extension).
 ///
 /// Exposed without auth so Prometheus can scrape without bearer tokens.
@@ -684,6 +701,7 @@ pub async fn start_server(port: u16) -> anyhow::Result<()> {
         refresh_tx: None,
         shutdown_tx: None,
         api_token: None,
+        egri_state: None,
     };
     start_server_with_state(port, state, None).await
 }
@@ -732,6 +750,7 @@ mod tests {
             refresh_tx: None,
             shutdown_tx: None,
             api_token: None,
+            egri_state: None,
         }
     }
 
@@ -826,6 +845,7 @@ mod tests {
             refresh_tx: None,
             shutdown_tx: None,
             api_token: None,
+            egri_state: None,
         };
         let app = build_router(state);
         let req = Request::builder()
@@ -856,6 +876,7 @@ mod tests {
             refresh_tx: None,
             shutdown_tx: Some(Arc::new(shutdown_tx)),
             api_token: None,
+            egri_state: None,
         };
         let app = build_router(state);
         let req = Request::builder()
@@ -911,6 +932,7 @@ mod tests {
             refresh_tx: None,
             shutdown_tx: None,
             api_token: Some("secret-token".into()),
+            egri_state: None,
         };
         let app = build_router(state);
         let req = Request::builder()
@@ -928,6 +950,7 @@ mod tests {
             refresh_tx: None,
             shutdown_tx: None,
             api_token: Some("secret-token".into()),
+            egri_state: None,
         };
         let app = build_router(state);
         let req = Request::builder()
@@ -946,6 +969,7 @@ mod tests {
             refresh_tx: None,
             shutdown_tx: None,
             api_token: Some("secret-token".into()),
+            egri_state: None,
         };
         let app = build_router(state);
         let req = Request::builder()
@@ -964,6 +988,7 @@ mod tests {
             refresh_tx: None,
             shutdown_tx: None,
             api_token: Some("secret-token".into()),
+            egri_state: None,
         };
         let app = build_router(state);
         // healthz should work without token
@@ -1026,6 +1051,7 @@ mod tests {
             refresh_tx: None,
             shutdown_tx: None,
             api_token: Some("secret-token".into()),
+            egri_state: None,
         };
         let app = build_router(state);
         // /metrics should work without token

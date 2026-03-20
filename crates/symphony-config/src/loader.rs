@@ -8,7 +8,10 @@
 use std::path::Path;
 
 use crate::template::TemplateError;
-use crate::types::{AgentConfig, CodexConfig, HooksConfig, ServiceConfig, WorkflowDefinition};
+use crate::types::{
+    AgentConfig, CodexConfig, ConsciousnessLevel, ControlProfile, EgriConfig, HooksConfig,
+    ProfileConfig, ServiceConfig, WorkflowDefinition,
+};
 
 /// Errors from loading a workflow file (Spec Section 5.5).
 #[derive(Debug, thiserror::Error)]
@@ -179,6 +182,16 @@ pub fn extract_config(def: &WorkflowDefinition) -> ServiceConfig {
         config.hive = extract_hive(hive);
     }
 
+    // Profile
+    if let Some(profile) = map.get(serde_yaml::Value::String("profile".into())) {
+        config.profile = extract_profile(profile);
+    }
+
+    // EGRI
+    if let Some(egri) = map.get(serde_yaml::Value::String("egri".into())) {
+        config.egri = extract_egri(egri);
+    }
+
     config
 }
 
@@ -198,6 +211,9 @@ fn extract_hooks(v: &serde_yaml::Value) -> HooksConfig {
     }
     if let Some(s) = get_str(v, "pr_feedback") {
         hooks.pr_feedback = Some(s);
+    }
+    if let Some(s) = get_str(v, "after_session") {
+        hooks.after_session = Some(s);
     }
     if let Some(timeout) = get_u64(v, "timeout_ms")
         && timeout > 0
@@ -318,7 +334,87 @@ fn extract_hive(v: &serde_yaml::Value) -> crate::types::HiveConfig {
     if let Some(n) = get_u64(v, "spaces_server_id") {
         hive.spaces_server_id = Some(n);
     }
+    // Per-agent profiles for hive specialization
+    if let Some(profiles) = v
+        .as_mapping()
+        .and_then(|m| m.get(serde_yaml::Value::String("agent_profiles".into())))
+        .and_then(|v| v.as_sequence())
+    {
+        hive.agent_profiles = profiles.iter().map(extract_profile).collect();
+    }
     hive
+}
+
+fn extract_egri(v: &serde_yaml::Value) -> EgriConfig {
+    let mut egri = EgriConfig::default();
+    if let Some(enabled) = v
+        .as_mapping()
+        .and_then(|m| m.get(serde_yaml::Value::String("batch_enabled".into())))
+        .and_then(|v| v.as_bool())
+    {
+        egri.batch_enabled = enabled;
+    }
+    if let Some(n) = get_u64(v, "eval_batch_size") {
+        egri.eval_batch_size = n as u32;
+    }
+    if let Some(n) = get_u64(v, "eval_interval_ms") {
+        egri.eval_interval_ms = n;
+    }
+    if let Some(n) = get_u64(v, "batch_budget") {
+        egri.batch_budget = n as u32;
+    }
+    if let Some(s) = get_str(v, "autonomy") {
+        egri.autonomy = s;
+    }
+    if let Some(s) = get_str(v, "ledger_path") {
+        egri.ledger_path = expand_path(&resolve_env(&s));
+    }
+    if let Some(s) = get_str(v, "eval_script") {
+        egri.eval_script = Some(s);
+    }
+    if let Some(t) = v
+        .as_mapping()
+        .and_then(|m| m.get(serde_yaml::Value::String("score_threshold".into())))
+        .and_then(|v| v.as_f64())
+    {
+        egri.score_threshold = t;
+    }
+    if let Some(enabled) = v
+        .as_mapping()
+        .and_then(|m| m.get(serde_yaml::Value::String("lago_journal".into())))
+        .and_then(|v| v.as_bool())
+    {
+        egri.lago_journal = enabled;
+    }
+    egri
+}
+
+fn extract_profile(v: &serde_yaml::Value) -> ProfileConfig {
+    let mut profile = ProfileConfig::default();
+    if let Some(role) = get_str(v, "role") {
+        profile.role = role;
+    }
+    if let Some(consciousness) = get_str(v, "consciousness") {
+        profile.consciousness = match consciousness.to_lowercase().as_str() {
+            "governed" => ConsciousnessLevel::Governed,
+            "autonomous" => ConsciousnessLevel::Autonomous,
+            _ => ConsciousnessLevel::Baseline,
+        };
+    }
+    if let Some(skills) = get_string_list(v, "skills") {
+        profile.skills = skills;
+    }
+    if let Some(control) = get_str(v, "control_profile") {
+        profile.control_profile = match control.to_lowercase().as_str() {
+            "governed" => ControlProfile::Governed,
+            "autonomous" => ControlProfile::Autonomous,
+            _ => ControlProfile::Baseline,
+        };
+    }
+    if let Some(context) = get_str(v, "context") {
+        profile.context = context;
+    }
+    profile
 }
 
 // YAML value helpers
@@ -492,6 +588,7 @@ hooks:
   after_run: "echo after"
   before_remove: "echo remove"
   pr_feedback: "gh pr view --json comments -q '.comments[].body'"
+  after_session: "echo session done"
   timeout_ms: 30000
 agent:
   max_concurrent_agents: 5
@@ -540,6 +637,7 @@ Prompt body"#;
             config.hooks.pr_feedback,
             Some("gh pr view --json comments -q '.comments[].body'".into())
         );
+        assert_eq!(config.hooks.after_session, Some("echo session done".into()));
         assert_eq!(config.hooks.timeout_ms, 30000);
 
         // Agent
@@ -798,6 +896,112 @@ Prompt body"#;
         };
         let errors = validate_dispatch_config(&config).unwrap_err();
         assert!(errors.iter().any(|e| e.contains("project_slug")));
+    }
+
+    // ── after_session hook config ──
+
+    #[test]
+    fn after_session_parsed_from_yaml() {
+        let content = "---\nhooks:\n  after_session: \"echo done\"\n---\nbody";
+        let def = parse_workflow(content).unwrap();
+        let config = extract_config(&def);
+        assert_eq!(config.hooks.after_session, Some("echo done".into()));
+    }
+
+    #[test]
+    fn after_session_absent_defaults_to_none() {
+        let content = "---\nhooks:\n  after_run: \"echo after\"\n---\nbody";
+        let def = parse_workflow(content).unwrap();
+        let config = extract_config(&def);
+        assert!(config.hooks.after_session.is_none());
+    }
+
+    // ── Profile config ──
+
+    #[test]
+    fn profile_default_produces_baseline() {
+        let profile = ProfileConfig::default();
+        assert_eq!(profile.role, "");
+        assert_eq!(profile.consciousness, ConsciousnessLevel::Baseline);
+        assert!(profile.skills.is_empty());
+        assert_eq!(profile.control_profile, ControlProfile::Baseline);
+        assert_eq!(profile.context, "");
+    }
+
+    #[test]
+    fn profile_full_extraction() {
+        let content = r#"---
+profile:
+  role: "senior Rust engineer"
+  consciousness: governed
+  skills:
+    - agentic-control-kernel
+    - knowledge-graph-memory
+  control_profile: autonomous
+  context: "Monorepo with strict linting"
+---
+body"#;
+        let def = parse_workflow(content).unwrap();
+        let config = extract_config(&def);
+        assert_eq!(config.profile.role, "senior Rust engineer");
+        assert_eq!(config.profile.consciousness, ConsciousnessLevel::Governed);
+        assert_eq!(
+            config.profile.skills,
+            vec!["agentic-control-kernel", "knowledge-graph-memory"]
+        );
+        assert_eq!(config.profile.control_profile, ControlProfile::Autonomous);
+        assert_eq!(config.profile.context, "Monorepo with strict linting");
+    }
+
+    #[test]
+    fn profile_missing_section_defaults() {
+        let content = "---\ntracker:\n  kind: linear\n---\nbody";
+        let def = parse_workflow(content).unwrap();
+        let config = extract_config(&def);
+        assert_eq!(config.profile.role, "");
+        assert_eq!(config.profile.consciousness, ConsciousnessLevel::Baseline);
+    }
+
+    #[test]
+    fn profile_partial_only_role() {
+        let content = "---\nprofile:\n  role: \"architect\"\n---\nbody";
+        let def = parse_workflow(content).unwrap();
+        let config = extract_config(&def);
+        assert_eq!(config.profile.role, "architect");
+        assert_eq!(config.profile.consciousness, ConsciousnessLevel::Baseline);
+        assert!(config.profile.skills.is_empty());
+    }
+
+    #[test]
+    fn profile_unknown_consciousness_falls_back() {
+        let content = "---\nprofile:\n  consciousness: \"quantum\"\n---\nbody";
+        let def = parse_workflow(content).unwrap();
+        let config = extract_config(&def);
+        assert_eq!(config.profile.consciousness, ConsciousnessLevel::Baseline);
+    }
+
+    #[test]
+    fn hive_agent_profiles_extraction() {
+        let content = r#"---
+hive:
+  enabled: true
+  agents_per_task: 3
+  agent_profiles:
+    - role: "architect"
+      consciousness: autonomous
+    - role: "implementer"
+      consciousness: governed
+---
+body"#;
+        let def = parse_workflow(content).unwrap();
+        let config = extract_config(&def);
+        assert_eq!(config.hive.agent_profiles.len(), 2);
+        assert_eq!(config.hive.agent_profiles[0].role, "architect");
+        assert_eq!(
+            config.hive.agent_profiles[0].consciousness,
+            ConsciousnessLevel::Autonomous
+        );
+        assert_eq!(config.hive.agent_profiles[1].role, "implementer");
     }
 
     // ── 1.6: Error surface ──

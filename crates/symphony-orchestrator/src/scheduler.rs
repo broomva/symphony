@@ -35,6 +35,9 @@ pub struct Scheduler {
     once: bool,
     /// Only dispatch these specific ticket identifiers.
     ticket_filter: Option<Vec<String>>,
+    /// EGRI batch evaluation runner (feature-gated).
+    #[cfg(feature = "egri")]
+    egri_runner: Option<symphony_egri::BatchEgriRunner>,
 }
 
 impl Scheduler {
@@ -66,6 +69,12 @@ impl Scheduler {
             worker_handles: Arc::new(StdMutex::new(HashMap::new())),
             once: false,
             ticket_filter: None,
+            #[cfg(feature = "egri")]
+            egri_runner: if initial_config.egri.batch_enabled {
+                Some(symphony_egri::BatchEgriRunner::new())
+            } else {
+                None
+            },
         }
     }
 
@@ -112,6 +121,12 @@ impl Scheduler {
 
             // Publish state snapshot to observability server
             self.publish_snapshot().await;
+
+            // EGRI batch evaluation (feature-gated)
+            #[cfg(feature = "egri")]
+            if let Some(ref mut egri) = self.egri_runner {
+                egri.maybe_evaluate(&self.obs_state, &config.egri).await;
+            }
 
             // Clean up stale worker abort handles
             self.cleanup_worker_handles().await;
@@ -487,6 +502,29 @@ impl Scheduler {
                 }
             }
 
+            // after_session hook: fire non-fatal hook with session context
+            // Read tokens from running entry before handle_worker_exit removes it
+            let (total_tokens, attempt_num) = {
+                let s = state.lock().await;
+                if let Some(entry) = s.running.get(&issue_id) {
+                    (entry.codex_total_tokens, entry.retry_attempt.unwrap_or(0))
+                } else {
+                    (0, attempt.unwrap_or(0))
+                }
+            };
+            let outcome = if normal_exit { "success" } else { "failure" };
+            let ws_path = workspace_mgr.workspace_path_for(&identifier);
+            workspace_mgr
+                .after_session_with_context(
+                    &ws_path,
+                    &identifier,
+                    &issue.title,
+                    outcome,
+                    attempt_num,
+                    total_tokens,
+                )
+                .await;
+
             handle_worker_exit(&state, &issue_id, normal_exit, &config).await;
 
             let snapshot = build_snapshot(&state).await;
@@ -569,6 +607,12 @@ impl Scheduler {
         build_snapshot(&self.state).await
     }
 
+    /// Get the EGRI evaluation state for observability (feature-gated).
+    #[cfg(feature = "egri")]
+    pub fn egri_state(&self) -> Option<std::sync::Arc<Mutex<symphony_egri::EvalSnapshot>>> {
+        self.egri_runner.as_ref().map(|r| r.state())
+    }
+
     /// Get locked state for testing.
     #[cfg(test)]
     pub async fn state(&self) -> tokio::sync::MutexGuard<'_, OrchestratorState> {
@@ -617,8 +661,13 @@ pub async fn run_worker(
         .await?;
 
     let template = prompt_template.lock().await.clone();
-    let prompt = symphony_config::template::render_prompt(&template, issue, attempt)
-        .map_err(|e| anyhow::anyhow!("prompt render failed: {e}"))?;
+    let prompt = symphony_config::template::render_prompt_with_profile(
+        &template,
+        issue,
+        attempt,
+        Some(&config.profile),
+    )
+    .map_err(|e| anyhow::anyhow!("prompt render failed: {e}"))?;
 
     // Branch on runtime kind: "arcan" dispatches via Arcan HTTP, default uses subprocess
     if config.runtime.kind == "arcan" {

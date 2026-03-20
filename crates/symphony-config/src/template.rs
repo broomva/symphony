@@ -11,6 +11,8 @@ use liquid::model::Value as LiquidValue;
 use serde_json::Value as JsonValue;
 use symphony_core::Issue;
 
+use crate::types::ProfileConfig;
+
 /// Errors from template operations.
 #[derive(Debug, thiserror::Error)]
 pub enum TemplateError {
@@ -28,12 +30,23 @@ const FALLBACK_PROMPT: &str = "You are working on an issue from Linear.";
 /// Template variables:
 /// - `issue` — all normalized fields including labels, blockers
 /// - `attempt` — `nil` on first run, integer on retry
+/// - `agent` — profile data (role, consciousness, skills, control_profile, context)
 ///
 /// Strict mode: unknown variables/filters fail.
 pub fn render_prompt(
     template_str: &str,
     issue: &Issue,
     attempt: Option<u32>,
+) -> Result<String, TemplateError> {
+    render_prompt_with_profile(template_str, issue, attempt, None)
+}
+
+/// Render prompt with optional agent profile context.
+pub fn render_prompt_with_profile(
+    template_str: &str,
+    issue: &Issue,
+    attempt: Option<u32>,
+    profile: Option<&ProfileConfig>,
 ) -> Result<String, TemplateError> {
     // Empty prompt body → fallback (S5.4)
     let template_source = if template_str.trim().is_empty() {
@@ -63,6 +76,10 @@ pub fn render_prompt(
             globals.insert("attempt".into(), LiquidValue::Nil);
         }
     }
+
+    // Agent profile: always present with defaults for strict mode safety
+    let agent_obj = build_agent_object(profile);
+    globals.insert("agent".into(), LiquidValue::Object(agent_obj));
 
     template
         .render(&globals)
@@ -167,6 +184,35 @@ fn build_issue_object(issue: &Issue) -> Object {
             .map(|d| LiquidValue::scalar(d.to_rfc3339()))
             .unwrap_or(LiquidValue::Nil),
     );
+
+    obj
+}
+
+/// Convert a ProfileConfig to a Liquid Object for template rendering.
+/// Always produces valid defaults (empty strings, empty arrays) for strict mode safety.
+fn build_agent_object(profile: Option<&ProfileConfig>) -> Object {
+    let default = ProfileConfig::default();
+    let p = profile.unwrap_or(&default);
+
+    let mut obj = Object::new();
+    obj.insert("role".into(), LiquidValue::scalar(p.role.clone()));
+    obj.insert(
+        "consciousness".into(),
+        LiquidValue::scalar(p.consciousness.to_string()),
+    );
+
+    let skills: Vec<LiquidValue> = p
+        .skills
+        .iter()
+        .map(|s| LiquidValue::scalar(s.clone()))
+        .collect();
+    obj.insert("skills".into(), LiquidValue::Array(skills));
+
+    obj.insert(
+        "control_profile".into(),
+        LiquidValue::scalar(p.control_profile.to_string()),
+    );
+    obj.insert("context".into(), LiquidValue::scalar(p.context.clone()));
 
     obj
 }
@@ -300,6 +346,71 @@ mod tests {
         let template = "{% for b in issue.blocked_by %}{{ b.identifier }}{% endfor %}";
         let result = render_prompt(template, &issue, None).unwrap();
         assert_eq!(result, "ABC-100");
+    }
+
+    // ── Agent profile template rendering ──
+
+    #[test]
+    fn render_agent_role() {
+        let issue = make_test_issue();
+        let profile = ProfileConfig {
+            role: "senior Rust engineer".into(),
+            ..Default::default()
+        };
+        let result =
+            render_prompt_with_profile("Role: {{ agent.role }}", &issue, None, Some(&profile))
+                .unwrap();
+        assert_eq!(result, "Role: senior Rust engineer");
+    }
+
+    #[test]
+    fn render_agent_consciousness() {
+        let issue = make_test_issue();
+        let profile = ProfileConfig {
+            consciousness: crate::types::ConsciousnessLevel::Governed,
+            ..Default::default()
+        };
+        let result = render_prompt_with_profile(
+            "Level: {{ agent.consciousness }}",
+            &issue,
+            None,
+            Some(&profile),
+        )
+        .unwrap();
+        assert_eq!(result, "Level: governed");
+    }
+
+    #[test]
+    fn render_agent_skills_iteration() {
+        let issue = make_test_issue();
+        let profile = ProfileConfig {
+            skills: vec!["skill-a".into(), "skill-b".into()],
+            ..Default::default()
+        };
+        let template = "{% for s in agent.skills %}{{ s }}{% unless forloop.last %}, {% endunless %}{% endfor %}";
+        let result = render_prompt_with_profile(template, &issue, None, Some(&profile)).unwrap();
+        assert_eq!(result, "skill-a, skill-b");
+    }
+
+    #[test]
+    fn render_agent_context() {
+        let issue = make_test_issue();
+        let profile = ProfileConfig {
+            context: "strict linting required".into(),
+            ..Default::default()
+        };
+        let result =
+            render_prompt_with_profile("{{ agent.context }}", &issue, None, Some(&profile))
+                .unwrap();
+        assert_eq!(result, "strict linting required");
+    }
+
+    #[test]
+    fn render_agent_defaults_when_no_profile() {
+        let issue = make_test_issue();
+        let template = "role={{ agent.role }} level={{ agent.consciousness }} skills={{ agent.skills | size }}";
+        let result = render_prompt_with_profile(template, &issue, None, None).unwrap();
+        assert_eq!(result, "role= level=baseline skills=0");
     }
 
     #[test]

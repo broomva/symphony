@@ -53,6 +53,31 @@ else
   fail "stimulus-workflow.md not found (cannot check template variables)"
 fi
 
+# 4. Prompt must include control metalayer instructions
+echo ""
+echo "--- Workflow: consciousness stack directives ---"
+if [ -f "$WORKFLOW" ]; then
+  if grep -qi 'CLAUDE.md' "$WORKFLOW"; then
+    pass "References CLAUDE.md (governance)"
+  else
+    fail "Missing CLAUDE.md reference (consciousness substrate 2)"
+  fi
+
+  if grep -qi 'AGENTS.md' "$WORKFLOW"; then
+    pass "References AGENTS.md (boundaries)"
+  else
+    fail "Missing AGENTS.md reference (consciousness substrate 2)"
+  fi
+
+  if grep -qi 'conversations' "$WORKFLOW"; then
+    pass "References conversation history (episodic memory)"
+  else
+    fail "Missing conversation history reference (consciousness substrate 3)"
+  fi
+else
+  fail "stimulus-workflow.md not found (cannot check consciousness directives)"
+fi
+
 echo ""
 if [ "$FAIL" -eq 0 ]; then
   echo "=== CONSTRAINT CHECK PASS ==="

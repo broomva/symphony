@@ -62,8 +62,11 @@ pub async fn run_run(args: RunArgs) -> anyhow::Result<()> {
     eprintln!("Running: {} — {}", issue.identifier, issue.title);
 
     // Build workspace manager
-    let workspace_mgr =
-        symphony_workspace::WorkspaceManager::new(config.workspace.clone(), config.hooks.clone());
+    let workspace_mgr = symphony_workspace::WorkspaceManager::with_profile(
+        config.workspace.clone(),
+        config.hooks.clone(),
+        config.profile.clone(),
+    );
 
     // Ensure workspace root exists
     tokio::fs::create_dir_all(&config.workspace.root).await?;

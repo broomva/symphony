@@ -8,6 +8,7 @@ members = [
     "crates/symphony-orchestrator",
     "crates/symphony-observability",
     "crates/symphony-arcan",
+    "crates/symphony-egri",
 ]
 resolver = "3"
 
@@ -66,6 +67,7 @@ symphony-agent = { path = "crates/symphony-agent", version = "0.2.0" }
 symphony-orchestrator = { path = "crates/symphony-orchestrator", version = "0.2.0" }
 symphony-observability = { path = "crates/symphony-observability", version = "0.2.0" }
 symphony-arcan = { path = "crates/symphony-arcan", version = "0.2.0" }
+symphony-egri = { path = "crates/symphony-egri", version = "0.2.0" }
 
 # The main binary (published as symphony-cli; installs the `symphony` command)
 [package]

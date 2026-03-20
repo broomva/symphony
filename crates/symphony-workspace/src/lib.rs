@@ -8,7 +8,7 @@
 
 use std::path::{Path, PathBuf};
 
-use symphony_config::types::{HooksConfig, WorkspaceConfig};
+use symphony_config::types::{HooksConfig, ProfileConfig, WorkspaceConfig};
 use symphony_core::Workspace;
 
 /// Errors from workspace operations.
@@ -32,11 +32,48 @@ pub enum WorkspaceError {
 pub struct WorkspaceManager {
     config: WorkspaceConfig,
     hooks: HooksConfig,
+    profile: ProfileConfig,
 }
 
 impl WorkspaceManager {
     pub fn new(config: WorkspaceConfig, hooks: HooksConfig) -> Self {
-        Self { config, hooks }
+        Self {
+            config,
+            hooks,
+            profile: ProfileConfig::default(),
+        }
+    }
+
+    /// Create a WorkspaceManager with an agent profile for env var injection.
+    pub fn with_profile(
+        config: WorkspaceConfig,
+        hooks: HooksConfig,
+        profile: ProfileConfig,
+    ) -> Self {
+        Self {
+            config,
+            hooks,
+            profile,
+        }
+    }
+
+    /// Get the agent profile env vars for hook injection.
+    fn agent_env_vars(&self) -> Vec<(String, String)> {
+        vec![
+            ("SYMPHONY_AGENT_ROLE".into(), self.profile.role.clone()),
+            (
+                "SYMPHONY_AGENT_CONSCIOUSNESS".into(),
+                self.profile.consciousness.to_string(),
+            ),
+            (
+                "SYMPHONY_AGENT_SKILLS".into(),
+                self.profile.skills.join(","),
+            ),
+            (
+                "SYMPHONY_AGENT_CONTROL_PROFILE".into(),
+                self.profile.control_profile.to_string(),
+            ),
+        ]
     }
 
     /// Get the workspace root path.
@@ -118,16 +155,15 @@ impl WorkspaceManager {
         title: &str,
     ) -> Result<(), WorkspaceError> {
         if let Some(hook) = &self.hooks.before_run {
-            run_hook_with_env(
-                hook,
-                workspace_path,
-                self.hooks.timeout_ms,
-                &[
-                    ("SYMPHONY_ISSUE_ID", identifier),
-                    ("SYMPHONY_ISSUE_TITLE", title),
-                ],
-            )
-            .await?;
+            let agent_vars = self.agent_env_vars();
+            let mut env_vars: Vec<(&str, &str)> = vec![
+                ("SYMPHONY_ISSUE_ID", identifier),
+                ("SYMPHONY_ISSUE_TITLE", title),
+            ];
+            for (k, v) in &agent_vars {
+                env_vars.push((k, v));
+            }
+            run_hook_with_env(hook, workspace_path, self.hooks.timeout_ms, &env_vars).await?;
         }
         Ok(())
     }
@@ -145,19 +181,20 @@ impl WorkspaceManager {
 
     /// Run the after_run hook with issue identifier and title. Failure is logged and ignored (S9.4).
     pub async fn after_run_with_issue(&self, workspace_path: &Path, identifier: &str, title: &str) {
-        if let Some(hook) = &self.hooks.after_run
-            && let Err(e) = run_hook_with_env(
-                hook,
-                workspace_path,
-                self.hooks.timeout_ms,
-                &[
-                    ("SYMPHONY_ISSUE_ID", identifier),
-                    ("SYMPHONY_ISSUE_TITLE", title),
-                ],
-            )
-            .await
-        {
-            tracing::warn!(%e, "after_run hook failed (ignored)");
+        if let Some(hook) = &self.hooks.after_run {
+            let agent_vars = self.agent_env_vars();
+            let mut env_vars: Vec<(&str, &str)> = vec![
+                ("SYMPHONY_ISSUE_ID", identifier),
+                ("SYMPHONY_ISSUE_TITLE", title),
+            ];
+            for (k, v) in &agent_vars {
+                env_vars.push((k, v));
+            }
+            if let Err(e) =
+                run_hook_with_env(hook, workspace_path, self.hooks.timeout_ms, &env_vars).await
+            {
+                tracing::warn!(%e, "after_run hook failed (ignored)");
+            }
         }
     }
 
@@ -175,21 +212,55 @@ impl WorkspaceManager {
             return String::new();
         };
 
-        match run_hook_capture_stdout(
-            hook,
-            workspace_path,
-            self.hooks.timeout_ms,
-            &[
-                ("SYMPHONY_ISSUE_ID", identifier),
-                ("SYMPHONY_ISSUE_TITLE", title),
-            ],
-        )
-        .await
+        let agent_vars = self.agent_env_vars();
+        let mut env_vars: Vec<(&str, &str)> = vec![
+            ("SYMPHONY_ISSUE_ID", identifier),
+            ("SYMPHONY_ISSUE_TITLE", title),
+        ];
+        for (k, v) in &agent_vars {
+            env_vars.push((k, v));
+        }
+
+        match run_hook_capture_stdout(hook, workspace_path, self.hooks.timeout_ms, &env_vars).await
         {
             Ok(output) => output.trim().to_string(),
             Err(e) => {
                 tracing::warn!(%e, "pr_feedback hook failed (ignored)");
                 String::new()
+            }
+        }
+    }
+
+    /// Run the after_session hook with full session context. Non-fatal: failure is
+    /// logged and ignored. Fires after all agent work completes (after pr_feedback,
+    /// before handle_worker_exit).
+    pub async fn after_session_with_context(
+        &self,
+        workspace_path: &Path,
+        identifier: &str,
+        title: &str,
+        outcome: &str,
+        attempt: u32,
+        total_tokens: u64,
+    ) {
+        if let Some(hook) = &self.hooks.after_session {
+            let attempt_str = attempt.to_string();
+            let tokens_str = total_tokens.to_string();
+            let agent_vars = self.agent_env_vars();
+            let mut env_vars: Vec<(&str, &str)> = vec![
+                ("SYMPHONY_ISSUE_ID", identifier),
+                ("SYMPHONY_ISSUE_TITLE", title),
+                ("SYMPHONY_SESSION_OUTCOME", outcome),
+                ("SYMPHONY_ATTEMPT", &attempt_str),
+                ("SYMPHONY_TOKENS_TOTAL", &tokens_str),
+            ];
+            for (k, v) in &agent_vars {
+                env_vars.push((k, v));
+            }
+            if let Err(e) =
+                run_hook_with_env(hook, workspace_path, self.hooks.timeout_ms, &env_vars).await
+            {
+                tracing::warn!(%e, "after_session hook failed (ignored)");
             }
         }
     }
@@ -635,6 +706,74 @@ mod tests {
         // Failure returns empty, not error (S62)
         let feedback = mgr.pr_feedback(&ws, "STI-100", "Test Issue").await;
         assert!(feedback.is_empty());
+    }
+
+    // ── after_session hook ──
+
+    #[tokio::test]
+    async fn after_session_runs_with_env_vars() {
+        let dir = tempfile::tempdir().unwrap();
+        let ws = dir.path().join("ws");
+        std::fs::create_dir_all(&ws).unwrap();
+
+        let mgr = WorkspaceManager::new(
+            WorkspaceConfig {
+                root: dir.path().to_path_buf(),
+            },
+            HooksConfig {
+                after_session: Some(
+                    "echo \"$SYMPHONY_ISSUE_ID|$SYMPHONY_SESSION_OUTCOME|$SYMPHONY_ATTEMPT|$SYMPHONY_TOKENS_TOTAL\" > session_result.txt"
+                        .into(),
+                ),
+                timeout_ms: 5000,
+                ..Default::default()
+            },
+        );
+
+        mgr.after_session_with_context(&ws, "STI-42", "Fix bug", "success", 0, 12345)
+            .await;
+        let content = std::fs::read_to_string(ws.join("session_result.txt")).unwrap();
+        assert_eq!(content.trim(), "STI-42|success|0|12345");
+    }
+
+    #[tokio::test]
+    async fn after_session_noop_when_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let ws = dir.path().join("ws");
+        std::fs::create_dir_all(&ws).unwrap();
+
+        let mgr = WorkspaceManager::new(
+            WorkspaceConfig {
+                root: dir.path().to_path_buf(),
+            },
+            HooksConfig::default(), // no after_session
+        );
+
+        // Should not panic
+        mgr.after_session_with_context(&ws, "STI-42", "Fix bug", "success", 0, 0)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn after_session_failure_is_nonfatal() {
+        let dir = tempfile::tempdir().unwrap();
+        let ws = dir.path().join("ws");
+        std::fs::create_dir_all(&ws).unwrap();
+
+        let mgr = WorkspaceManager::new(
+            WorkspaceConfig {
+                root: dir.path().to_path_buf(),
+            },
+            HooksConfig {
+                after_session: Some("exit 1".into()),
+                timeout_ms: 5000,
+                ..Default::default()
+            },
+        );
+
+        // Should not panic or propagate error
+        mgr.after_session_with_context(&ws, "STI-42", "Fix bug", "failure", 1, 500)
+            .await;
     }
 
     // ── Path containment (S9.5) ──

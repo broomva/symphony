@@ -51,6 +51,9 @@ hooks:
   #     gh api "repos/your-org/your-repo/pulls/$PR_NUM/comments" \
   #       --jq '.[] | "**\(.user.login)**: \(.body)"' 2>/dev/null
   #   fi
+  # after_session: |
+  #   # Uncomment to capture session outcome (e.g. for conversation bridge)
+  #   echo "$SYMPHONY_ISSUE_ID: $SYMPHONY_SESSION_OUTCOME (tokens: $SYMPHONY_TOKENS_TOTAL)"
   timeout_ms: 180000
 
 agent:
@@ -62,6 +65,13 @@ codex:
 
 server:
   port: 8080
+
+# profile:
+#   role: "senior full-stack engineer"
+#   consciousness: governed        # baseline | governed | autonomous
+#   skills: [agentic-control-kernel, knowledge-graph-memory]
+#   control_profile: governed      # baseline | governed | autonomous
+#   context: "This is a monorepo with strict linting. Always run make check."
 ---
 
 You are a senior engineer working on {{ issue.identifier }}: {{ issue.title }}.
@@ -134,6 +144,9 @@ hooks:
   #     gh api "repos/your-org/your-repo/pulls/$PR_NUM/comments" \
   #       --jq '.[] | "**\(.user.login)**: \(.body)"' 2>/dev/null
   #   fi
+  # after_session: |
+  #   # Uncomment to capture session outcome (e.g. for conversation bridge)
+  #   echo "$SYMPHONY_ISSUE_ID: $SYMPHONY_SESSION_OUTCOME (tokens: $SYMPHONY_TOKENS_TOTAL)"
   timeout_ms: 120000
 
 agent:
@@ -145,6 +158,13 @@ codex:
 
 server:
   port: 8082
+
+# profile:
+#   role: "senior full-stack engineer"
+#   consciousness: governed        # baseline | governed | autonomous
+#   skills: []
+#   control_profile: governed      # baseline | governed | autonomous
+#   context: ""
 ---
 
 You are working on GitHub issue {{ issue.identifier }}: {{ issue.title }}.
@@ -214,6 +234,9 @@ hooks:
   after_run: |
     git add -A
     git commit -m "$SYMPHONY_ISSUE_ID: $SYMPHONY_ISSUE_TITLE" || true
+  # after_session: |
+  #   # Uncomment to capture session outcome (e.g. for conversation bridge)
+  #   echo "$SYMPHONY_ISSUE_ID: $SYMPHONY_SESSION_OUTCOME (tokens: $SYMPHONY_TOKENS_TOTAL)"
   timeout_ms: 120000
 
 agent:
@@ -225,6 +248,13 @@ codex:
 
 server:
   port: 8084
+
+# profile:
+#   role: "senior full-stack engineer"
+#   consciousness: governed        # baseline | governed | autonomous
+#   skills: []
+#   control_profile: governed      # baseline | governed | autonomous
+#   context: ""
 ---
 
 You are a senior engineer working on {{ issue.identifier }}: {{ issue.title }}.

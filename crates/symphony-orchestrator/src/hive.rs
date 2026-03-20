@@ -190,6 +190,7 @@ mod tests {
             egri_budget_per_agent: 10,
             eval_script: None,
             spaces_server_id: None,
+            agent_profiles: vec![],
         }
     }
 

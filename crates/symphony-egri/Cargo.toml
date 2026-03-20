@@ -1,0 +1,31 @@
+[package]
+name = "symphony-egri"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "EGRI evaluation integration for Symphony orchestrator"
+
+[dependencies]
+symphony-core.workspace = true
+symphony-config.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+
+# autoany-core is optional — only needed for Mode 2 (hive EGRI integration)
+# Uses path dependency locally; CI should use git dependency or feature-gate
+autoany_core = { path = "../../../autoany/autoany-core", optional = true }
+
+[features]
+default = []
+hive = ["autoany_core"]
+
+[dev-dependencies]
+tempfile = "3"

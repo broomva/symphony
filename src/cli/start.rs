@@ -63,9 +63,10 @@ pub async fn run_start(args: StartArgs, port_override: Option<u16>) -> anyhow::R
         Arc::from(symphony_tracker::create_tracker(&config.tracker)?);
 
     // Build workspace manager
-    let workspace_mgr = Arc::new(symphony_workspace::WorkspaceManager::new(
+    let workspace_mgr = Arc::new(symphony_workspace::WorkspaceManager::with_profile(
         config.workspace.clone(),
         config.hooks.clone(),
+        config.profile.clone(),
     ));
 
     // Ensure workspace root exists
@@ -94,6 +95,7 @@ pub async fn run_start(args: StartArgs, port_override: Option<u16>) -> anyhow::R
             api_token: std::env::var("SYMPHONY_API_TOKEN")
                 .ok()
                 .filter(|s| !s.is_empty()),
+            egri_state: None, // Set by scheduler when EGRI feature is enabled
         };
         tokio::spawn(async move {
             if let Err(e) = symphony_observability::server::start_server_with_state(

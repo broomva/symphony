@@ -41,7 +41,9 @@ constraints:
     - "make smoke must pass"
     - "stimulus-workflow.md must have valid YAML front matter"
     - "Prompt must include {{ issue.identifier }} and {{ issue.title }}"
-    - "Prompt must include control metalayer instructions"
+    - "Prompt must reference CLAUDE.md (governance / control metalayer)"
+    - "Prompt must reference AGENTS.md (architecture boundaries)"
+    - "Prompt must reference conversation history (episodic memory)"
 
 budget:
   max_iterations: 10

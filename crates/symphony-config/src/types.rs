@@ -31,6 +31,12 @@ pub struct ServiceConfig {
     /// Hive collaborative evolution configuration.
     #[serde(default)]
     pub hive: HiveConfig,
+    /// Agent profile — persona, consciousness, skills, control strictness.
+    #[serde(default)]
+    pub profile: ProfileConfig,
+    /// EGRI batch evaluation configuration.
+    #[serde(default)]
+    pub egri: EgriConfig,
     /// Extension: optional HTTP server port.
     pub server_port: Option<u16>,
 }
@@ -68,6 +74,12 @@ pub struct HooksConfig {
     /// to use as context for the next agent turn (PR review comments, CI results, etc.).
     /// Failure is logged and ignored (non-fatal).
     pub pr_feedback: Option<String>,
+    /// After-session hook: runs after all agent work completes (after pr_feedback,
+    /// before handle_worker_exit) with session outcome context.
+    /// Receives env vars: SYMPHONY_ISSUE_ID, SYMPHONY_ISSUE_TITLE,
+    /// SYMPHONY_SESSION_OUTCOME, SYMPHONY_ATTEMPT, SYMPHONY_TOKENS_TOTAL.
+    /// Failure is logged and ignored (non-fatal).
+    pub after_session: Option<String>,
     pub timeout_ms: u64,
 }
 
@@ -134,6 +146,137 @@ pub struct HiveConfig {
     pub eval_script: Option<String>,
     /// Spaces server ID for coordination channels.
     pub spaces_server_id: Option<u64>,
+    /// Per-agent profiles for hive mode specialization.
+    /// If fewer entries than agents_per_task, remaining agents use the global profile.
+    #[serde(default)]
+    pub agent_profiles: Vec<ProfileConfig>,
+}
+
+/// Configuration for EGRI batch evaluation integration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EgriConfig {
+    /// Enable batch evaluation in the poll loop.
+    #[serde(default)]
+    pub batch_enabled: bool,
+    /// Number of completed sessions between evaluations.
+    #[serde(default = "default_eval_batch_size")]
+    pub eval_batch_size: u32,
+    /// Minimum time (ms) between evaluations.
+    #[serde(default = "default_eval_interval_ms")]
+    pub eval_interval_ms: u64,
+    /// Max trials per evaluation cycle.
+    #[serde(default = "default_batch_budget")]
+    pub batch_budget: u32,
+    /// Autonomy mode: "suggestion", "sandbox", "auto_promote".
+    #[serde(default = "default_autonomy")]
+    pub autonomy: String,
+    /// Path to JSONL ledger file for evaluation records.
+    #[serde(default = "default_ledger_path")]
+    pub ledger_path: String,
+    /// Optional external script to override built-in evaluator.
+    pub eval_script: Option<String>,
+    /// Minimum score threshold for promotion.
+    #[serde(default = "default_score_threshold")]
+    pub score_threshold: f64,
+    /// Enable Lago-compatible journal events.
+    #[serde(default)]
+    pub lago_journal: bool,
+}
+
+impl Default for EgriConfig {
+    fn default() -> Self {
+        Self {
+            batch_enabled: false,
+            eval_batch_size: default_eval_batch_size(),
+            eval_interval_ms: default_eval_interval_ms(),
+            batch_budget: default_batch_budget(),
+            autonomy: default_autonomy(),
+            ledger_path: default_ledger_path(),
+            eval_script: None,
+            score_threshold: default_score_threshold(),
+            lago_journal: false,
+        }
+    }
+}
+
+fn default_eval_batch_size() -> u32 {
+    5
+}
+fn default_eval_interval_ms() -> u64 {
+    300_000
+}
+fn default_batch_budget() -> u32 {
+    10
+}
+fn default_autonomy() -> String {
+    "sandbox".to_string()
+}
+fn default_ledger_path() -> String {
+    "evals/symphony-prompts/ledger.jsonl".to_string()
+}
+fn default_score_threshold() -> f64 {
+    0.7
+}
+
+/// Consciousness depth level for agent profiles.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ConsciousnessLevel {
+    #[default]
+    Baseline,
+    Governed,
+    Autonomous,
+}
+
+impl std::fmt::Display for ConsciousnessLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Baseline => write!(f, "baseline"),
+            Self::Governed => write!(f, "governed"),
+            Self::Autonomous => write!(f, "autonomous"),
+        }
+    }
+}
+
+/// Control strictness profile for agent execution.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ControlProfile {
+    #[default]
+    Baseline,
+    Governed,
+    Autonomous,
+}
+
+impl std::fmt::Display for ControlProfile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Baseline => write!(f, "baseline"),
+            Self::Governed => write!(f, "governed"),
+            Self::Autonomous => write!(f, "autonomous"),
+        }
+    }
+}
+
+/// Agent profile configuration — persona, consciousness depth, skills, and control strictness.
+/// Fully optional: missing section = all defaults = current behavior.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProfileConfig {
+    /// Agent role description (e.g. "senior Rust engineer").
+    #[serde(default)]
+    pub role: String,
+    /// Consciousness depth level.
+    #[serde(default)]
+    pub consciousness: ConsciousnessLevel,
+    /// Skills the agent has access to.
+    #[serde(default)]
+    pub skills: Vec<String>,
+    /// Control profile strictness.
+    #[serde(default)]
+    pub control_profile: ControlProfile,
+    /// Free-form context text for the agent.
+    #[serde(default)]
+    pub context: String,
 }
 
 fn default_hive_agents() -> u32 {
@@ -198,6 +341,7 @@ impl Default for HooksConfig {
             after_run: None,
             before_remove: None,
             pr_feedback: None,
+            after_session: None,
             timeout_ms: 60000,
         }
     }

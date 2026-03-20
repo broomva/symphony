@@ -69,6 +69,10 @@ pub async fn run_config(workflow_path: &Path, format: OutputFormat) -> anyhow::R
         "  pr_feedback:    {}",
         config.hooks.pr_feedback.as_deref().unwrap_or("(none)")
     );
+    println!(
+        "  after_session:  {}",
+        config.hooks.after_session.as_deref().unwrap_or("(none)")
+    );
     println!("  timeout_ms:     {}", config.hooks.timeout_ms);
     println!();
 
@@ -121,6 +125,47 @@ pub async fn run_config(workflow_path: &Path, format: OutputFormat) -> anyhow::R
             .spaces_server_id
             .map(|id| id.to_string())
             .unwrap_or_else(|| "(none)".into())
+    );
+    println!();
+
+    println!("[egri]");
+    println!("  batch_enabled:  {}", config.egri.batch_enabled);
+    println!("  eval_batch_size:{}", config.egri.eval_batch_size);
+    println!("  eval_interval:  {}ms", config.egri.eval_interval_ms);
+    println!("  batch_budget:   {}", config.egri.batch_budget);
+    println!("  autonomy:       {}", config.egri.autonomy);
+    println!("  ledger_path:    {}", config.egri.ledger_path);
+    println!(
+        "  eval_script:    {}",
+        config.egri.eval_script.as_deref().unwrap_or("(built-in)")
+    );
+    println!("  score_threshold:{}", config.egri.score_threshold);
+    println!("  lago_journal:   {}", config.egri.lago_journal);
+    println!();
+
+    println!("[profile]");
+    println!(
+        "  role:           {}",
+        if config.profile.role.is_empty() {
+            "(none)"
+        } else {
+            &config.profile.role
+        }
+    );
+    println!("  consciousness:  {}", config.profile.consciousness);
+    if config.profile.skills.is_empty() {
+        println!("  skills:         (none)");
+    } else {
+        println!("  skills:         {:?}", config.profile.skills);
+    }
+    println!("  control:        {}", config.profile.control_profile);
+    println!(
+        "  context:        {}",
+        if config.profile.context.is_empty() {
+            "(none)"
+        } else {
+            &config.profile.context
+        }
     );
     println!();
 
