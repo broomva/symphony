@@ -618,6 +618,78 @@ Phases are ordered by dependency: each phase only depends on prior phases.
 
 ---
 
+## Known Issues — Observed in Production (2026-03-23)
+
+Issues observed during a real multi-agent orchestration run dispatching 60 Linear backlog tickets from the `~/broomva/` workspace. These are **critical** blockers for Symphony's reliability as an autonomous orchestrator.
+
+### I1 — `after_run` hook causes tangled commits (CRITICAL)
+
+**Problem:** The `after_run` hook in WORKFLOW.md does `git add -A && git commit`, which stages ALL changes in the workspace — including work-in-progress from other concurrent agents. Each commit becomes a tangled bundle of 5-10 unrelated tickets. This makes git history unusable, cherry-picking impossible, and PR review meaningless.
+
+**Root cause:** Symphony dispatches concurrent agents into the same workspace root with a shared git index. The `after_run` hook has no isolation — it commits whatever is dirty.
+
+**Fix required:**
+- Per-agent git worktrees (P7 primitive from CLAUDE.md) so each agent has an isolated working copy
+- Or: per-agent subdirectory isolation with scoped `git add <specific-files>` in the hook
+- Or: Symphony should manage commits itself using the agent's changed-file manifest, not delegate to a blind `git add -A`
+- AC: Each commit contains files from exactly one ticket
+
+### I2 — Agents dump artifacts at workspace root in `BRO-###/` folders (HIGH)
+
+**Problem:** Agents created `BRO-###/` scratch directories at the workspace root instead of working in the correct project subdirectory. 59 folders were created, polluting the repo. Code that should have landed in `core/life/`, `apps/`, or `skills/` ended up in throwaway root folders.
+
+**Root cause:** The WORKFLOW.md prompt tells agents the workspace structure but doesn't enforce navigation. Agents defaulted to creating their ticket ID as a directory. No workspace policy prevents writes outside designated project dirs.
+
+**Fix required:**
+- Workspace containment: `cwd` for each agent should be set to the target project directory, not the workspace root
+- Or: Pre-create the correct target directory and pass it as a variable in the prompt template
+- Or: Add a `before_run` hook that validates the agent's working directory
+- AC: No files created outside existing project directories
+
+### I3 — `.venv/` and binary blobs committed to git (HIGH)
+
+**Problem:** A Python agent ran `uv venv && uv pip install` inside a `BRO-42/haima-py/` directory, creating a full `.venv/` with compiled `.so` files, a 23MB ruff binary, and hundreds of site-packages. The `after_run` hook's `git add -A` committed all of it. This bloats git history permanently.
+
+**Root cause:** No `.gitignore` protection for agent scratch dirs. The `after_run` hook has no size/pattern filter.
+
+**Fix required:**
+- Symphony should auto-create a `.gitignore` in each agent workspace (or enforce the repo's root `.gitignore`)
+- The `after_run` hook should never `git add -A` — use `git add` with explicit file lists or pattern exclusions
+- Consider a pre-commit hook that rejects binaries above a size threshold
+- AC: `.venv/`, `node_modules/`, `*.so`, compiled binaries are never committed
+
+### I4 — Duplicate/stale Symphony sessions spawn without cleanup (MEDIUM)
+
+**Problem:** 4 duplicate Symphony sessions ran simultaneously against `apps/healthOS/` (same WORKFLOW.md, same cwd), plus the root session. They spawned 23+ orphaned Claude agents consuming resources. No deduplication or health check prevented this.
+
+**Root cause:** No PID file or lock mechanism. Restarting Symphony (or triggering it from hooks) doesn't check for existing sessions.
+
+**Fix required:**
+- PID file / lock file per workspace to prevent duplicate sessions
+- Health check endpoint that existing sessions respond to before spawning a new one
+- Graceful shutdown that kills child agents when Symphony exits
+- AC: `symphony start` fails fast if another instance is already running for the same workspace
+
+### I5 — No compilation/test verification before commit (MEDIUM)
+
+**Problem:** Agents committed code without running `cargo check`, `cargo test`, `bun typecheck`, or any validation. The `after_run` hook just commits blindly. Generated code may not compile.
+
+**Fix required:**
+- Add a `before_commit` validation step in the hook that runs project-appropriate checks
+- Or: Symphony should verify agent output before allowing the hook to commit
+- AC: No commit is created if the project's smoke test fails
+
+### I6 — Task state not reliably synced back to tracker (LOW)
+
+**Problem:** 5 tasks were marked `done` in local markdown files, but the actual work quality varied from excellent to empty. No verification gate between "agent says done" and "task marked done."
+
+**Fix required:**
+- Post-run evaluator that checks whether the agent actually produced meaningful output
+- Verification hook that runs acceptance criteria before state transition
+- AC: Tasks only transition to `done` after passing a defined quality gate
+
+---
+
 ## Implementation-Defined Decisions
 
 These choices are required by the spec but left to the implementation. Document here:
