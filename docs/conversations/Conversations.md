@@ -6,8 +6,8 @@ tags:
   - moc
 type: moc
 status: active
-created: 2026-03-24
-updated: 2026-03-24
+created: 2026-04-24
+updated: 2026-04-24
 related:
   - "[[Documentation Hub]]"
   - "[[CLAUDE]]"
@@ -22,47 +22,13 @@ related:
 > tool usage, files modified, and commits — linking agent work to the
 > knowledge graph.
 
-**Total sessions indexed**: 14
-
-## 2026-03-18
-
-| Session | Branch | Turns | Duration | Topic |
-|---------|--------|-------|----------|-------|
-| [[session-2026-03-18-5ab8de40]] | `master` | 2 | 23m | lets work on sy |
-| [[session-2026-03-18-8a3ce802]] | `master` | 6 | 1h 14m | Implement the following plan:   Symphony DX: Skill |
-| [[session-2026-03-18-72911522]] | `master` | 3 | 1h 14m | Implement the following plan:   Symphony Dashboard |
-
-## 2026-03-17
-
-| Session | Branch | Turns | Duration | Topic |
-|---------|--------|-------|----------|-------|
-| [[session-2026-03-17-cd62fcc4]] | `master` | 5 | 3h 11m | whats next on this project? |
-| [[session-2026-03-17-635dce40]] | `master` | 17 | 4h 34m | Implement the following plan:   Plan: Symphony CLI |
-| [[session-2026-03-17-7f02c7e0]] | `master` | 1 | 0m | why do I get this?  railway init Unauthorized. Ple |
-| [[session-2026-03-17-540676a7]] | `master` | 32 | 22h 58m | lets run symphony locally and evaluate the project |
-| [[session-2026-03-17-81b7171a]] | `master` | 3 | 3m | lets run symphony |
-| [[session-2026-03-17-2617354e]] | `master` | 1 | 0m | please check if there is any daemon running and st |
-
-## 2026-03-16
-
-| Session | Branch | Turns | Duration | Topic |
-|---------|--------|-------|----------|-------|
-| [[session-2026-03-16-5a65e109]] | `master` | 2 | 0m | <command-name>/exit</command-name>             <co |
-| [[session-2026-03-16-e856bd3c]] | `master` | 16 | 3h 39m | lets run symphony on these https://linear.app/stim |
-| [[session-2026-03-16-5a510370]] | `feature/developer-agents-memory-migrate-docs-to-obsidian` | 11 | 2h 58m | lets work on symphony. Whats next on this project? |
-
-## 2026-03-06
-
-| Session | Branch | Turns | Duration | Topic |
-|---------|--------|-------|----------|-------|
-| [[session-2026-03-06-b37e7a97]] | `master` | 2 | 0m | <command-name>/ralph-loop:ralph-loop</command-name |
-| [[session-2026-03-06-88703d60]] | `master` | 22 | 136h 22m | <command-message>ralph-loop:ralph-loop</command-me |
+**Total sessions indexed**: 0
 
 ## Statistics
 
-- **Total turns**: 123
-- **Branches worked on**: 2
-- **Date range**: 2026-03-06 → 2026-03-18
+- **Total turns**: 0
+- **Branches worked on**: 0
+- **Date range**: — → —
 
 ---
 
