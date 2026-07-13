@@ -56,3 +56,4 @@ dashboard/apps/*/node_modules/
 dashboard/apps/*/.next/
 dashboard/packages/*/node_modules/
 dashboard/.env.local
+__pycache__/

@@ -7,6 +7,12 @@
 
 set -e
 
+# Gate 0: secret scan of staged changes — blocks credentials from ever reaching
+# a commit (root-cause guard for the public conversation-bridge logs). Fast, no
+# deps; runs before the heavier Rust gate. See scripts/secret-scan.sh + SECURITY.md.
+echo "=== pre-commit: secret scan (staged) ==="
+bash scripts/secret-scan.sh --staged
+
 echo "=== pre-commit: make smoke (compile + clippy + test) ==="
 make smoke
 
