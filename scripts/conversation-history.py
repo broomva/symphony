@@ -554,6 +554,84 @@ def _callout_safe(text: str) -> str:
     return "\n".join(result_lines)
 
 
+# ── Secret redaction (root-cause guard) ────────────────────────────────────────
+# Session transcripts capture raw tool calls (e.g. Bash commands). If a command
+# embeds a literal credential, it would otherwise be committed verbatim to this
+# PUBLIC repo. This scrubs secrets from the generated doc at capture time so the
+# bridge can never publish a live credential again. Defense-in-depth with
+# scripts/secret-scan.sh (pre-commit + CI). See /SECURITY.md.
+_PLACEHOLDER_TOKENS = (
+    "redacted", "example", "change-me", "changeme", "placeholder", "your_",
+    "your-", "xxxx", "not_set", "notset", "dummy", "localhost", "127.0.0.1",
+    "test", "sample", "<", "${", "$(",
+)
+
+
+def _is_placeholder(value: str) -> bool:
+    """True if a captured value is clearly a template/placeholder, not a secret."""
+    if not value or value[0] in "$<{":
+        return True
+    low = value.lower()
+    return any(tok in low for tok in _PLACEHOLDER_TOKENS)
+
+
+# Known secret formats (prefix/shape based) — redacted wholesale.
+_TOKEN_FORMATS = [
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),                 # AWS access key id
+    re.compile(r"\bsk-ant-[A-Za-z0-9_\-]{20,}"),         # Anthropic
+    re.compile(r"\bsk-[A-Za-z0-9]{40,}"),                # OpenAI
+    re.compile(r"\bgh[pousr]_[A-Za-z0-9]{30,}"),         # GitHub token
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{40,}"),       # GitHub fine-grained PAT
+    re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"),       # Slack
+    re.compile(r"-----BEGIN[A-Z ]*PRIVATE KEY-----"),    # PEM private key
+]
+
+# Credentialed URIs: scheme://user:password@host  → redact the userinfo.
+_URI_CRED = re.compile(r"(?i)\b([a-z][a-z0-9+.\-]*://)([^/\s:@]+):([^/\s@]+)@")
+
+# Sensitive KEY=VALUE / KEY: VALUE assignments where the value is a *token-shaped
+# opaque blob* (20+ chars of [A-Za-z0-9._+/=~-]) terminated by a delimiter. The
+# restricted charset + trailing delimiter deliberately EXCLUDE source code such
+# as `api_key = resolve_env(&x)`, `String::new()`, `process.env.X`, `std::env::var(..)`
+# — those contain `(`, `:`, `.` mid-expression or are too short — so we redact real
+# credentials without mangling code captured in a transcript.
+_KV_SECRET = re.compile(
+    r"(?i)([A-Za-z0-9_]*(?:token|secret|password|passwd|api[_-]?key|access[_-]?key"
+    r"|private[_-]?key|client[_-]?secret|auth[_-]?secret)[A-Za-z0-9_]*\s*[:=]\s*[\"']?)"
+    r"([A-Za-z0-9+/_=~-]{20,})(?=[\"'\s,;)]|$)"
+)
+
+# CLI-flag credentials passed by space: `--token <blob>`, `--api-key <blob>`, …
+_FLAG_SECRET = re.compile(
+    r"(?i)(--?(?:token|password|secret|api[-_]?key|auth[-_]?token|access[-_]?key)[=\s]+)"
+    r"([A-Za-z0-9+/_=~-]{20,})(?=[\"'\s,;)]|$)"
+)
+
+
+def _redact_secrets(text: str) -> str:
+    """Scrub live credentials from generated doc text before it is written."""
+    if not text:
+        return text
+    text = _URI_CRED.sub(
+        lambda m: (m.group(1) + "[REDACTED_CREDENTIAL]@")
+        if not _is_placeholder(m.group(3)) else m.group(0),
+        text,
+    )
+    text = _KV_SECRET.sub(
+        lambda m: (m.group(1) + "[REDACTED_SECRET]")
+        if not _is_placeholder(m.group(2)) else m.group(0),
+        text,
+    )
+    text = _FLAG_SECRET.sub(
+        lambda m: (m.group(1) + "[REDACTED_SECRET]")
+        if not _is_placeholder(m.group(2)) else m.group(0),
+        text,
+    )
+    for pat in _TOKEN_FORMATS:
+        text = pat.sub("[REDACTED_SECRET]", text)
+    return text
+
+
 # ── Markdown Generator ─────────────────────────────────────────────────────────
 def generate_session_doc(session_id: str, meta: dict, transcript: dict) -> str:
     """Generate an Obsidian markdown document for a single session."""
@@ -773,7 +851,9 @@ def generate_session_doc(session_id: str, meta: dict, transcript: dict) -> str:
     lines.append("")
     lines.append("*Part of [[Conversations]] | See [[CLAUDE]] for project invariants*")
 
-    return "\n".join(lines)
+    # Root-cause guard: scrub any live credential captured from raw tool calls
+    # before this doc is written to the public repo. See /SECURITY.md.
+    return _redact_secrets("\n".join(lines))
 
 
 def generate_moc(session_docs: list, output_dir: Path) -> str:
